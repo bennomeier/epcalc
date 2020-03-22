@@ -1,8 +1,10 @@
 <script>
   import { scaleLinear, scaleLog } from 'd3-scale';
   import { drag } from 'd3-drag';
+//  import { csv } from 'd3-fetch';
   import { selectAll } from 'd3-selection'
   import { onMount } from 'svelte';
+  import { csv } from 'd3-fetch';
   import { createEventDispatcher } from 'svelte';
 
   const dispatch = createEventDispatcher();
@@ -95,6 +97,78 @@
 
   // var data = [[2   , 2  ], [5   , 2  ], [18  , 4  ], [28  , 6  ], [43  , 8  ], [61  , 12 ], [95  , 16 ], [139 , 19 ], [245 , 26 ], [388 , 34 ], [593 , 43 ], [978 , 54 ], [1501, 66 ], [2336, 77 ], [2922, 92 ], [3513, 107], [4747, 124]]
   var data = []
+
+
+
+function cases(caseType, country, state) {
+    // This function returns cumulative cases based on the John Hopkins University git repository.
+    // At present it is possible to specify a country, but not a region.
+    // THIS WILL NOT WORK FOR COUNTRIES THAT ARE DIVIDED INTO MULTIPLE REGIONS.
+
+    // Arguments
+    // caseType: either "Confirmed", "Deaths", or "Recovered"
+    // country: a country
+    // state: a province/state. Leave empty if this does not apply, but set it e.g. to "United Kingdom" to get the apropriate data for all of the United Kingdom.
+
+    // url for copy and paste https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv
+    
+    var path = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-".concat(caseType,  ".csv")
+
+    var totalCases = [];
+    csv(path).then(function(data3) {
+	data3.forEach(function(d) {
+	    if (d["Country/Region"] == country) {
+		
+		//console.log(d); // this prints the entire country information for the given caseType
+
+		// if no state is given take the first hit
+		// else if a state is given make sure it equals the entry in the record.
+		if (state.length == 0 ||  d["Province/State"] == state) {
+
+		    var i = 0;
+		    //console.log(d["Province/State"]);
+		    for (var key in d) {
+			if (d.hasOwnProperty(key)) {
+			    if (i > 3) {
+				totalCases.push(  +d[key] );
+    			    }
+			    i++;
+			}
+		    }
+		}
+	    }
+	});
+    });
+    return totalCases
+}
+
+function dailyCases(totalCases) {
+    // calculate the daily Cases based on a list of total cases.
+    var dailyNew = []
+    dailyNew.push(+ totalCases[0]);
+    for (var i = 1; i < totalCases.length; i++) {
+     	dailyNew.push(totalCases[i] - totalCases[i-1]);
+    }
+    return dailyNew
+}
+
+// for e.g., Germany set country to "Germany" and state to ""
+var country = "United Kingdom";
+var state = "United Kingdom";
+
+var totalConfirmed = cases("Confirmed", country, state);
+var dailyConfirmed = dailyCases(totalConfirmed)
+
+var totalRecovered = cases("Recovered", country, state);
+var dailyRecovered = dailyCases(totalRecovered)
+
+var totalDeaths = cases("Deaths", country, state);
+var dailyDeaths = dailyCases(totalDeaths)
+
+console.log(totalDeaths);
+
+//}//);
+	
 </script>
 
 <style>
@@ -216,6 +290,9 @@
           height="{height}"
           style="fill:white; opacity: 0">     
         </rect>
+	
+
+
 
         {#each range(colors.length) as j}
           {#if !log}
