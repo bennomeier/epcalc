@@ -216,6 +216,8 @@
         }
     }
 
+    const globals = (typeof window !== 'undefined' ? window : global);
+
     function bind(component, name, callback) {
         if (component.$$.props.indexOf(name) === -1)
             return;
@@ -3001,7 +3003,197 @@
       return drag;
     }
 
+    var EOL = {},
+        EOF = {},
+        QUOTE = 34,
+        NEWLINE = 10,
+        RETURN = 13;
+
+    function objectConverter(columns) {
+      return new Function("d", "return {" + columns.map(function(name, i) {
+        return JSON.stringify(name) + ": d[" + i + "] || \"\"";
+      }).join(",") + "}");
+    }
+
+    function customConverter(columns, f) {
+      var object = objectConverter(columns);
+      return function(row, i) {
+        return f(object(row), i, columns);
+      };
+    }
+
+    // Compute unique columns in order of discovery.
+    function inferColumns(rows) {
+      var columnSet = Object.create(null),
+          columns = [];
+
+      rows.forEach(function(row) {
+        for (var column in row) {
+          if (!(column in columnSet)) {
+            columns.push(columnSet[column] = column);
+          }
+        }
+      });
+
+      return columns;
+    }
+
+    function pad(value, width) {
+      var s = value + "", length = s.length;
+      return length < width ? new Array(width - length + 1).join(0) + s : s;
+    }
+
+    function formatYear(year) {
+      return year < 0 ? "-" + pad(-year, 6)
+        : year > 9999 ? "+" + pad(year, 6)
+        : pad(year, 4);
+    }
+
+    function formatDate(date) {
+      var hours = date.getUTCHours(),
+          minutes = date.getUTCMinutes(),
+          seconds = date.getUTCSeconds(),
+          milliseconds = date.getUTCMilliseconds();
+      return isNaN(date) ? "Invalid Date"
+          : formatYear(date.getUTCFullYear()) + "-" + pad(date.getUTCMonth() + 1, 2) + "-" + pad(date.getUTCDate(), 2)
+          + (milliseconds ? "T" + pad(hours, 2) + ":" + pad(minutes, 2) + ":" + pad(seconds, 2) + "." + pad(milliseconds, 3) + "Z"
+          : seconds ? "T" + pad(hours, 2) + ":" + pad(minutes, 2) + ":" + pad(seconds, 2) + "Z"
+          : minutes || hours ? "T" + pad(hours, 2) + ":" + pad(minutes, 2) + "Z"
+          : "");
+    }
+
+    function dsvFormat(delimiter) {
+      var reFormat = new RegExp("[\"" + delimiter + "\n\r]"),
+          DELIMITER = delimiter.charCodeAt(0);
+
+      function parse(text, f) {
+        var convert, columns, rows = parseRows(text, function(row, i) {
+          if (convert) return convert(row, i - 1);
+          columns = row, convert = f ? customConverter(row, f) : objectConverter(row);
+        });
+        rows.columns = columns || [];
+        return rows;
+      }
+
+      function parseRows(text, f) {
+        var rows = [], // output rows
+            N = text.length,
+            I = 0, // current character index
+            n = 0, // current line number
+            t, // current token
+            eof = N <= 0, // current token followed by EOF?
+            eol = false; // current token followed by EOL?
+
+        // Strip the trailing newline.
+        if (text.charCodeAt(N - 1) === NEWLINE) --N;
+        if (text.charCodeAt(N - 1) === RETURN) --N;
+
+        function token() {
+          if (eof) return EOF;
+          if (eol) return eol = false, EOL;
+
+          // Unescape quotes.
+          var i, j = I, c;
+          if (text.charCodeAt(j) === QUOTE) {
+            while (I++ < N && text.charCodeAt(I) !== QUOTE || text.charCodeAt(++I) === QUOTE);
+            if ((i = I) >= N) eof = true;
+            else if ((c = text.charCodeAt(I++)) === NEWLINE) eol = true;
+            else if (c === RETURN) { eol = true; if (text.charCodeAt(I) === NEWLINE) ++I; }
+            return text.slice(j + 1, i - 1).replace(/""/g, "\"");
+          }
+
+          // Find next delimiter or newline.
+          while (I < N) {
+            if ((c = text.charCodeAt(i = I++)) === NEWLINE) eol = true;
+            else if (c === RETURN) { eol = true; if (text.charCodeAt(I) === NEWLINE) ++I; }
+            else if (c !== DELIMITER) continue;
+            return text.slice(j, i);
+          }
+
+          // Return last token before EOF.
+          return eof = true, text.slice(j, N);
+        }
+
+        while ((t = token()) !== EOF) {
+          var row = [];
+          while (t !== EOL && t !== EOF) row.push(t), t = token();
+          if (f && (row = f(row, n++)) == null) continue;
+          rows.push(row);
+        }
+
+        return rows;
+      }
+
+      function preformatBody(rows, columns) {
+        return rows.map(function(row) {
+          return columns.map(function(column) {
+            return formatValue(row[column]);
+          }).join(delimiter);
+        });
+      }
+
+      function format(rows, columns) {
+        if (columns == null) columns = inferColumns(rows);
+        return [columns.map(formatValue).join(delimiter)].concat(preformatBody(rows, columns)).join("\n");
+      }
+
+      function formatBody(rows, columns) {
+        if (columns == null) columns = inferColumns(rows);
+        return preformatBody(rows, columns).join("\n");
+      }
+
+      function formatRows(rows) {
+        return rows.map(formatRow).join("\n");
+      }
+
+      function formatRow(row) {
+        return row.map(formatValue).join(delimiter);
+      }
+
+      function formatValue(value) {
+        return value == null ? ""
+            : value instanceof Date ? formatDate(value)
+            : reFormat.test(value += "") ? "\"" + value.replace(/"/g, "\"\"") + "\""
+            : value;
+      }
+
+      return {
+        parse: parse,
+        parseRows: parseRows,
+        format: format,
+        formatBody: formatBody,
+        formatRows: formatRows,
+        formatRow: formatRow,
+        formatValue: formatValue
+      };
+    }
+
+    var csv = dsvFormat(",");
+
+    var csvParse = csv.parse;
+
+    function responseText(response) {
+      if (!response.ok) throw new Error(response.status + " " + response.statusText);
+      return response.text();
+    }
+
+    function text$1(input, init) {
+      return fetch(input, init).then(responseText);
+    }
+
+    function dsvParse(parse) {
+      return function(input, init, row) {
+        if (arguments.length === 2 && typeof init === "function") row = init, init = undefined;
+        return text$1(input, init).then(function(response) {
+          return parse(response, row);
+        });
+      };
+    }
+
+    var csv$1 = dsvParse(csvParse);
+
     /* src/Chart.svelte generated by Svelte v3.12.1 */
+    const { console: console_1 } = globals;
 
     const file = "src/Chart.svelte";
 
@@ -3035,7 +3227,7 @@
     	return child_ctx;
     }
 
-    // (189:6) {#each yScale.ticks(5) as tick}
+    // (263:6) {#each yScale.ticks(5) as tick}
     function create_each_block_4(ctx) {
     	var g, line, text_1, t0_value = Number.isInteger(ctx.Math.log10(ctx.tick)) ? formatNumber(ctx.tick) : (ctx.log ? "": formatNumber(ctx.tick)) + "", t0, t1_value = (ctx.tick == ctx.yScale.ticks(5)[0]) ? " ": "" + "", t1, g_class_value, g_transform_value;
 
@@ -3048,13 +3240,13 @@
     			t1 = text(t1_value);
     			attr_dev(line, "x2", "100%");
     			attr_dev(line, "class", "svelte-1hzt5y0");
-    			add_location(line, file, 190, 10, 3992);
+    			add_location(line, file, 264, 10, 6409);
     			attr_dev(text_1, "y", "-4");
     			attr_dev(text_1, "class", "svelte-1hzt5y0");
-    			add_location(text_1, file, 191, 10, 4026);
+    			add_location(text_1, file, 265, 10, 6443);
     			attr_dev(g, "class", g_class_value = "tick tick-" + ctx.tick + " svelte-1hzt5y0");
     			attr_dev(g, "transform", g_transform_value = "translate(0, " + (ctx.yScale(ctx.tick) - ctx.padding.bottom) + ")");
-    			add_location(g, file, 189, 8, 3895);
+    			add_location(g, file, 263, 8, 6312);
     		},
 
     		m: function mount(target, anchor) {
@@ -3089,11 +3281,11 @@
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block_4.name, type: "each", source: "(189:6) {#each yScale.ticks(5) as tick}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block_4.name, type: "each", source: "(263:6) {#each yScale.ticks(5) as tick}", ctx });
     	return block;
     }
 
-    // (199:6) {#each xScaleTime.ticks() as i}
+    // (273:6) {#each xScaleTime.ticks() as i}
     function create_each_block_3(ctx) {
     	var g, text_1, t0_value = ctx.i == 0 ? "Day ":"" + "", t0, t1_value = ctx.i + "", t1, g_transform_value;
 
@@ -3106,10 +3298,10 @@
     			attr_dev(text_1, "x", "0");
     			attr_dev(text_1, "y", "-4");
     			attr_dev(text_1, "class", "svelte-1hzt5y0");
-    			add_location(text_1, file, 200, 10, 4384);
+    			add_location(text_1, file, 274, 10, 6801);
     			attr_dev(g, "class", "tick svelte-1hzt5y0");
     			attr_dev(g, "transform", g_transform_value = "translate(" + ctx.xScaleTime(ctx.i) + "," + height + ")");
-    			add_location(g, file, 199, 8, 4309);
+    			add_location(g, file, 273, 8, 6726);
     		},
 
     		m: function mount(target, anchor) {
@@ -3139,11 +3331,11 @@
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block_3.name, type: "each", source: "(199:6) {#each xScaleTime.ticks() as i}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block_3.name, type: "each", source: "(273:6) {#each xScaleTime.ticks() as i}", ctx });
     	return block;
     }
 
-    // (234:10) {:else}
+    // (311:10) {:else}
     function create_else_block(ctx) {
     	var rect, rect_x_value, rect_y_value, rect_height_value, dispose;
 
@@ -3173,7 +3365,7 @@
     			attr_dev(rect, "height", rect_height_value = (func_1)());
     			set_style(rect, "fill", ctx.colors[ctx.j]);
     			set_style(rect, "opacity", (ctx.active == ctx.i ? 0.9: 0.6));
-    			add_location(rect, file, 234, 14, 5564);
+    			add_location(rect, file, 311, 14, 7985);
 
     			dispose = [
     				listen_dev(rect, "mouseover", mouseover_handler_2),
@@ -3221,11 +3413,11 @@
     			run_all(dispose);
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_else_block.name, type: "else", source: "(234:10) {:else}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_else_block.name, type: "else", source: "(311:10) {:else}", ctx });
     	return block;
     }
 
-    // (221:10) {#if !log}
+    // (298:10) {#if !log}
     function create_if_block_1(ctx) {
     	var rect, rect_x_value, rect_y_value, rect_height_value, dispose;
 
@@ -3247,7 +3439,7 @@
     			attr_dev(rect, "height", rect_height_value = ctx.Math.max(height - ctx.padding.bottom - ctx.yScale(ctx.y[ctx.i][ctx.j]*ctx.checked[ctx.j] ),0));
     			set_style(rect, "fill", ctx.colors[ctx.j]);
     			set_style(rect, "opacity", (ctx.active == ctx.i ? 0.9: 0.6));
-    			add_location(rect, file, 221, 14, 4968);
+    			add_location(rect, file, 298, 14, 7389);
 
     			dispose = [
     				listen_dev(rect, "mouseover", mouseover_handler_1),
@@ -3295,11 +3487,11 @@
     			run_all(dispose);
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_1.name, type: "if", source: "(221:10) {#if !log}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_1.name, type: "if", source: "(298:10) {#if !log}", ctx });
     	return block;
     }
 
-    // (220:8) {#each range(colors.length) as j}
+    // (297:8) {#each range(colors.length) as j}
     function create_each_block_2(ctx) {
     	var if_block_anchor;
 
@@ -3343,11 +3535,11 @@
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block_2.name, type: "each", source: "(220:8) {#each range(colors.length) as j}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block_2.name, type: "each", source: "(297:8) {#each range(colors.length) as j}", ctx });
     	return block;
     }
 
-    // (207:6) {#each range(y.length) as i}
+    // (281:6) {#each range(y.length) as i}
     function create_each_block_1(ctx) {
     	var rect, rect_x_value, rect_width_value, each_1_anchor, dispose;
 
@@ -3383,7 +3575,7 @@
     			attr_dev(rect, "height", height);
     			set_style(rect, "fill", "white");
     			set_style(rect, "opacity", "0");
-    			add_location(rect, file, 207, 8, 4535);
+    			add_location(rect, file, 281, 8, 6952);
 
     			dispose = [
     				listen_dev(rect, "mouseover", mouseover_handler),
@@ -3449,11 +3641,11 @@
     			run_all(dispose);
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block_1.name, type: "each", source: "(207:6) {#each range(y.length) as i}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block_1.name, type: "each", source: "(281:6) {#each range(y.length) as i}", ctx });
     	return block;
     }
 
-    // (268:6) {#each range(data.length) as i}
+    // (345:6) {#each range(data.length) as i}
     function create_each_block(ctx) {
     	var rect, rect_x_value, rect_y_value, rect_height_value;
 
@@ -3468,7 +3660,7 @@
     			set_style(rect, "fill", "black");
     			set_style(rect, "opacity", "0.5");
     			set_style(rect, "box-shadow", "4px 10px 5px 2px rgba(0,0,0,0.75)");
-    			add_location(rect, file, 268, 8, 6892);
+    			add_location(rect, file, 345, 8, 9313);
     		},
 
     		m: function mount(target, anchor) {
@@ -3499,11 +3691,11 @@
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block.name, type: "each", source: "(268:6) {#each range(data.length) as i}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block.name, type: "each", source: "(345:6) {#each range(data.length) as i}", ctx });
     	return block;
     }
 
-    // (286:4) {#if active >= 0}
+    // (363:4) {#if active >= 0}
     function create_if_block(ctx) {
     	var div, svg, path, path_fill_value;
 
@@ -3515,21 +3707,21 @@
     			attr_dev(path, "d", "M 0 0 L 10 0 L 5 10 z");
     			attr_dev(path, "fill", path_fill_value = ctx.lock ? '#555':'#AAA');
     			attr_dev(path, "stroke-width", "3");
-    			add_location(path, file, 293, 10, 7898);
+    			add_location(path, file, 370, 10, 10319);
     			set_style(svg, "position", "absolute");
     			set_style(svg, "top", "-12px");
     			set_style(svg, "left", "0px");
     			attr_dev(svg, "height", "10");
     			attr_dev(svg, "width", "10");
     			attr_dev(svg, "class", "svelte-1hzt5y0");
-    			add_location(svg, file, 292, 10, 7812);
+    			add_location(svg, file, 369, 10, 10233);
     			set_style(div, "position", "absolute");
     			set_style(div, "pointer-events", "none");
     			set_style(div, "width", "100px");
     			set_style(div, "left", "" + ctx.xScale(ctx.active) + "px");
     			set_style(div, "top", "" + ctx.Math.max(ctx.yScale(ctx.sum(ctx.y[ctx.active], ctx.checked)),0) + "px");
     			attr_dev(div, "class", "tip");
-    			add_location(div, file, 286, 6, 7440);
+    			add_location(div, file, 363, 6, 9861);
     		},
 
     		m: function mount(target, anchor) {
@@ -3558,7 +3750,7 @@
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block.name, type: "if", source: "(286:4) {#if active >= 0}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block.name, type: "if", source: "(363:4) {#if active >= 0}", ctx });
     	return block;
     }
 
@@ -3632,17 +3824,17 @@
     			if (if_block) if_block.c();
     			attr_dev(g0, "class", "axis y-axis");
     			attr_dev(g0, "transform", "translate(0," + ctx.padding.top + ")");
-    			add_location(g0, file, 187, 4, 3786);
+    			add_location(g0, file, 261, 4, 6203);
     			attr_dev(g1, "class", "axis x-axis svelte-1hzt5y0");
-    			add_location(g1, file, 197, 4, 4239);
+    			add_location(g1, file, 271, 4, 6656);
     			attr_dev(g2, "class", "bars");
-    			add_location(g2, file, 205, 4, 4475);
+    			add_location(g2, file, 279, 4, 6892);
     			attr_dev(g3, "class", "bars");
-    			add_location(g3, file, 266, 4, 6829);
+    			add_location(g3, file, 343, 4, 9250);
     			set_style(svg, "position", "absolute");
     			set_style(svg, "height", "" + height + "px");
     			attr_dev(svg, "class", "svelte-1hzt5y0");
-    			add_location(svg, file, 184, 2, 3709);
+    			add_location(svg, file, 258, 2, 6126);
     			set_style(div0, "position", "absolute");
     			set_style(div0, "width", "" + (width+15) + "px");
     			set_style(div0, "height", "" + height + "px");
@@ -3650,12 +3842,12 @@
     			set_style(div0, "top", "0px");
     			set_style(div0, "left", "0px");
     			set_style(div0, "pointer-events", "none");
-    			add_location(div0, file, 283, 2, 7274);
+    			add_location(div0, file, 360, 2, 9695);
     			set_style(div1, "width", "" + (width+15) + "px");
     			set_style(div1, "height", "" + height + "px");
     			set_style(div1, "position", "relative");
     			set_style(div1, "top", "20px");
-    			add_location(div1, file, 183, 0, 3624);
+    			add_location(div1, file, 257, 0, 6041);
     		},
 
     		l: function claim(nodes) {
@@ -3824,12 +4016,68 @@
 
     let height = 420;
 
+    var country = "United Kingdom";
+
+    var state = "United Kingdom";
+
     function range(n){
       return Array(n).fill().map((_, i) => i);
     }
 
     function formatNumber(num) {
       return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')
+    }
+
+    function cases(caseType, country, state) {
+      // This function returns cumulative cases based on the John Hopkins University git repository.
+      // At present it is possible to specify a country, but not a region.
+      // THIS WILL NOT WORK FOR COUNTRIES THAT ARE DIVIDED INTO MULTIPLE REGIONS.
+
+      // Arguments
+      // caseType: either "Confirmed", "Deaths", or "Recovered"
+      // country: a country
+      // state: a province/state. Leave empty if this does not apply, but set it e.g. to "United Kingdom" to get the apropriate data for all of the United Kingdom.
+
+      // url for copy and paste https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv
+      
+      var path = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-".concat(caseType,  ".csv");
+
+      var totalCases = [];
+      csv$1(path).then(function(data3) {
+    	data3.forEach(function(d) {
+    	    if (d["Country/Region"] == country) {
+    		
+    		//console.log(d); // this prints the entire country information for the given caseType
+
+    		// if no state is given take the first hit
+    		// else if a state is given make sure it equals the entry in the record.
+    		if (state.length == 0 ||  d["Province/State"] == state) {
+
+    		    var i = 0;
+    		    //console.log(d["Province/State"]);
+    		    for (var key in d) {
+    			if (d.hasOwnProperty(key)) {
+    			    if (i > 3) {
+    				totalCases.push(  +d[key] );
+      			    }
+    			    i++;
+    			}
+    		    }
+    		}
+    	    }
+    	});
+      });
+      return totalCases
+    }
+
+    function dailyCases(totalCases) {
+      // calculate the daily Cases based on a list of total cases.
+      var dailyNew = [];
+      dailyNew.push(+ totalCases[0]);
+      for (var i = 1; i < totalCases.length; i++) {
+       	dailyNew.push(totalCases[i] - totalCases[i-1]);
+      }
+      return dailyNew
     }
 
     function instance($$self, $$props, $$invalidate) {
@@ -3851,9 +4099,22 @@
       // var data = [[2   , 2  ], [5   , 2  ], [18  , 4  ], [28  , 6  ], [43  , 8  ], [61  , 12 ], [95  , 16 ], [139 , 19 ], [245 , 26 ], [388 , 34 ], [593 , 43 ], [978 , 54 ], [1501, 66 ], [2336, 77 ], [2922, 92 ], [3513, 107], [4747, 124]]
       var data = [];
 
+    var totalConfirmed = cases("Confirmed", country, state);
+    var dailyConfirmed = dailyCases(totalConfirmed);
+
+    var totalRecovered = cases("Recovered", country, state);
+    var dailyRecovered = dailyCases(totalRecovered);
+
+    var totalDeaths = cases("Deaths", country, state);
+    var dailyDeaths = dailyCases(totalDeaths);
+
+    console.log(totalDeaths);
+
+    //}//);
+
     	const writable_props = ['y', 'tmax', 'xmax', 'deaths', 'total', 'vline', 'timestep', 'total_infected', 'N', 'ymax', 'InterventionTime', 'colors', 'log', 'active', 'checked'];
     	Object.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Chart> was created with unknown prop '${key}'`);
+    		if (!writable_props.includes(key) && !key.startsWith('$$')) console_1.warn(`<Chart> was created with unknown prop '${key}'`);
     	});
 
     	const mouseover_handler = ({ i }) => showTip(i);
@@ -3908,7 +4169,7 @@
     	};
 
     	$$self.$capture_state = () => {
-    		return { sum, y, tmax, xmax, deaths, total, vline, timestep, total_infected, N, ymax, InterventionTime, colors, log: log$1, width, height, active_lock, active, checked, data, showTip, active_hover, xScale, xScaleTime, indexToTime, timeToIndex, yScale, yScaleL, innerWidth, barWidth, lock };
+    		return { sum, y, tmax, xmax, deaths, total, vline, timestep, total_infected, N, ymax, InterventionTime, colors, log: log$1, width, height, active_lock, active, checked, data, country, state, totalConfirmed, dailyConfirmed, totalRecovered, dailyRecovered, totalDeaths, dailyDeaths, showTip, active_hover, xScale, xScaleTime, indexToTime, timeToIndex, yScale, yScaleL, innerWidth, barWidth, lock };
     	};
 
     	$$self.$inject_state = $$props => {
@@ -3932,6 +4193,14 @@
     		if ('active' in $$props) $$invalidate('active', active = $$props.active);
     		if ('checked' in $$props) $$invalidate('checked', checked = $$props.checked);
     		if ('data' in $$props) $$invalidate('data', data = $$props.data);
+    		if ('country' in $$props) country = $$props.country;
+    		if ('state' in $$props) state = $$props.state;
+    		if ('totalConfirmed' in $$props) totalConfirmed = $$props.totalConfirmed;
+    		if ('dailyConfirmed' in $$props) dailyConfirmed = $$props.dailyConfirmed;
+    		if ('totalRecovered' in $$props) totalRecovered = $$props.totalRecovered;
+    		if ('dailyRecovered' in $$props) dailyRecovered = $$props.dailyRecovered;
+    		if ('totalDeaths' in $$props) totalDeaths = $$props.totalDeaths;
+    		if ('dailyDeaths' in $$props) dailyDeaths = $$props.dailyDeaths;
     		if ('showTip' in $$props) $$invalidate('showTip', showTip = $$props.showTip);
     		if ('active_hover' in $$props) $$invalidate('active_hover', active_hover = $$props.active_hover);
     		if ('xScale' in $$props) $$invalidate('xScale', xScale = $$props.xScale);
@@ -4041,46 +4310,46 @@
     		const { ctx } = this.$$;
     		const props = options.props || {};
     		if (ctx.y === undefined && !('y' in props)) {
-    			console.warn("<Chart> was created without expected prop 'y'");
+    			console_1.warn("<Chart> was created without expected prop 'y'");
     		}
     		if (ctx.tmax === undefined && !('tmax' in props)) {
-    			console.warn("<Chart> was created without expected prop 'tmax'");
+    			console_1.warn("<Chart> was created without expected prop 'tmax'");
     		}
     		if (ctx.xmax === undefined && !('xmax' in props)) {
-    			console.warn("<Chart> was created without expected prop 'xmax'");
+    			console_1.warn("<Chart> was created without expected prop 'xmax'");
     		}
     		if (ctx.deaths === undefined && !('deaths' in props)) {
-    			console.warn("<Chart> was created without expected prop 'deaths'");
+    			console_1.warn("<Chart> was created without expected prop 'deaths'");
     		}
     		if (ctx.total === undefined && !('total' in props)) {
-    			console.warn("<Chart> was created without expected prop 'total'");
+    			console_1.warn("<Chart> was created without expected prop 'total'");
     		}
     		if (ctx.vline === undefined && !('vline' in props)) {
-    			console.warn("<Chart> was created without expected prop 'vline'");
+    			console_1.warn("<Chart> was created without expected prop 'vline'");
     		}
     		if (ctx.timestep === undefined && !('timestep' in props)) {
-    			console.warn("<Chart> was created without expected prop 'timestep'");
+    			console_1.warn("<Chart> was created without expected prop 'timestep'");
     		}
     		if (ctx.total_infected === undefined && !('total_infected' in props)) {
-    			console.warn("<Chart> was created without expected prop 'total_infected'");
+    			console_1.warn("<Chart> was created without expected prop 'total_infected'");
     		}
     		if (ctx.N === undefined && !('N' in props)) {
-    			console.warn("<Chart> was created without expected prop 'N'");
+    			console_1.warn("<Chart> was created without expected prop 'N'");
     		}
     		if (ctx.ymax === undefined && !('ymax' in props)) {
-    			console.warn("<Chart> was created without expected prop 'ymax'");
+    			console_1.warn("<Chart> was created without expected prop 'ymax'");
     		}
     		if (ctx.InterventionTime === undefined && !('InterventionTime' in props)) {
-    			console.warn("<Chart> was created without expected prop 'InterventionTime'");
+    			console_1.warn("<Chart> was created without expected prop 'InterventionTime'");
     		}
     		if (ctx.colors === undefined && !('colors' in props)) {
-    			console.warn("<Chart> was created without expected prop 'colors'");
+    			console_1.warn("<Chart> was created without expected prop 'colors'");
     		}
     		if (ctx.active === undefined && !('active' in props)) {
-    			console.warn("<Chart> was created without expected prop 'active'");
+    			console_1.warn("<Chart> was created without expected prop 'active'");
     		}
     		if (ctx.checked === undefined && !('checked' in props)) {
-    			console.warn("<Chart> was created without expected prop 'checked'");
+    			console_1.warn("<Chart> was created without expected prop 'checked'");
     		}
     	}
 
@@ -22562,7 +22831,7 @@
     }
 
     function create_fragment$3(ctx) {
-    	var link, t0, h2, t2, div75, div50, div49, div0, b0, br0, t4, t5_value = ctx.Math.round(ctx.indexToTime(ctx.active_)) + "", t5, t6, div7, span0, t7, t8, div5, div1, t10, div4, div2, span1, t12, i0, t13_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][0])) + "", t13, t14, t15_value = (100*ctx.Iters[ctx.active_][0]).toFixed(2) + "", t15, t16, t17, div3, span2, t19, i1, t20_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[0])) + "", t20, t21, t22, div6, t24, div14, updating_checked, t25, t26, div12, div8, t28, div11, div9, span3, t30, i2, t31_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][1])) + "", t31, t32, t33_value = (100*ctx.Iters[ctx.active_][1]).toFixed(2) + "", t33, t34, t35, div10, span4, t37, i3, t38_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[1])) + "", t38, t39, t40, div13, t42, div21, updating_checked_1, t43, t44, div19, div15, t46, div18, div16, span5, t48, i4, t49_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][2])) + "", t49, t50, t51_value = (100*ctx.Iters[ctx.active_][2]).toFixed(2) + "", t51, t52, t53, div17, span6, t55, i5, t56_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[2])) + "", t56, t57, t58, div20, t59, i6, t61, t62, div28, t63, t64, div26, div22, t66, div25, div23, span7, t68, i7, t69_value = formatNumber$1(ctx.Math.round(ctx.N* (1-ctx.Iters[ctx.active_][0]-ctx.Iters[ctx.active_][1]-ctx.Iters[ctx.active_][2])+ctx.I0 )) + "", t69, t70, t71_value = ((100*(1-ctx.Iters[ctx.active_][0]-ctx.Iters[ctx.active_][1]-ctx.Iters[ctx.active_][2]-ctx.I0/ctx.N))).toFixed(2) + "", t71, t72, t73, div24, span8, t75, i8, t76_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.get_d(ctx.active_)[3]+ctx.get_d(ctx.active_)[4]+ctx.get_d(ctx.active_)[5]+ctx.get_d(ctx.active_)[6]+ctx.get_d(ctx.active_)[7]) )) + "", t76, t77, t78, div27, t80, div34, updating_checked_2, t81, t82, div32, div29, t84, div31, div30, span9, t86, i9, t87_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.Iters[ctx.active_][7]+ctx.Iters[ctx.active_][8]) )) + "", t87, t88, t89_value = (100*(ctx.Iters[ctx.active_][7]+ctx.Iters[ctx.active_][8])).toFixed(2) + "", t89, t90, t91, div33, t93, div41, t94, updating_checked_3, t95, div39, div35, t97, div37, div36, span10, t99, i10, t100_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.Iters[ctx.active_][5]+ctx.Iters[ctx.active_][6]) )) + "", t100, t101, t102_value = (100*(ctx.Iters[ctx.active_][5]+ctx.Iters[ctx.active_][6])).toFixed(2) + "", t102, t103, t104, div38, span11, t106, i11, t107_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.get_d(ctx.active_)[5]+ctx.get_d(ctx.active_)[6]))) + "", t107, t108, t109, div40, t111, div48, t112, updating_checked_4, t113, div46, div42, t115, div45, div43, span12, t117, i12, t118_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][9])) + "", t118, t119, t120_value = (100*ctx.Iters[ctx.active_][9]).toFixed(2) + "", t120, t121, t122, div44, span13, t124, i13, t125_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[9])) + "", t125, t126, t127, div47, t129, div74, div51, updating_checked_5, updating_active, t130, div52, t131, div53, t132, div61, div60, div54, span14, raw0_value = math_inline("\\mathcal{R}_t=" + (ctx.R0*ctx.InterventionAmt).toFixed(2) ) + "", t133, t134, show_if = ctx.xScaleTime(ctx.InterventionTime) >= 100, t135, div58, div55, t136, t137_value = format("d")(ctx.InterventionTime) + "", t137, t138, span15, div56, t140, div57, svg, g1, g0, path, t141, div59, t142, div69, div68, div67, div66, div63, div62, t143, br1, t144, div65, div64, t145_value = (ctx.InterventionAmt).toFixed(2) + "", t145, t146, input0, t147, div70, t148, div73, div72, updating_checked_6, div71, t150, div117, div79, div76, t152, div77, t153, div78, t155, div116, div85, div80, t157, div81, t158, br2, t159, div82, t160_value = format(",")(ctx.Math.round(ctx.N)) + "", t160, t161, input1, t162, div83, t163, br3, t164, div84, t165, t166, input2, t167, div90, div88, div86, t168, html_tag, raw1_value = math_inline("\\mathcal{R}_0") + "", t169, div87, t170, br4, t171, div89, t172, t173, input3, t174, div96, div91, t176, div92, t177, html_tag_1, raw2_value = math_inline("T_{\\text{inc}}") + "", t178, br5, t179, div93, t180_value = (ctx.D_incbation).toFixed(2) + "", t180, t181, t182, input4, t183, div94, t184, html_tag_2, raw3_value = math_inline("T_{\\text{inf}}") + "", t185, br6, t186, div95, t187, t188, t189, input5, t190, div97, t191, div103, div98, t193, div99, t194, br7, t195, div100, t196_value = (ctx.CFR*100).toFixed(2) + "", t196, t197, t198, input6, t199, div101, t200, br8, t201, div102, t202, t203, t204, input7, input7_min_value, t205, div109, div104, t207, div105, t208, br9, t209, div106, t210, t211, t212, input8, t213, div107, t214, br10, t215, div108, t216, t217, t218, input9, t219, div115, div110, t221, div111, t222, br11, t223, div112, t224_value = (ctx.P_SEVERE*100).toFixed(2) + "", t224, t225, t226, input10, t227, div113, t228, br12, t229, div114, t230, t231, t232, input11, t233, div118, t234, p0, t236, p1, t237, b1, a0, t239, t240, b2, t242, span16, b3, t244, span17, b4, t246, span18, b5, t248, a1, t250, a2, t252, span19, t253, t254, p2, t255, t256_value = ctx.Math.round(ctx.indexToTime(ctx.active_)) + "", t256, t257, a3, t259, input12, t260, t261_value = ((1-(ctx.Math.pow(1 - (ctx.Iters[ctx.active_][2])*(0.45/100), ctx.p_num_ind)))*100).toFixed(5) + "", t261, t262, a4, t264, t265, p3, t267, div119, table, tr0, th0, t268, th1, t270, th2, t271, br13, t272, html_tag_3, raw5_value = math_inline("\\mathcal{R}_0") + "", t273, th3, t274, br14, t275, html_tag_4, raw6_value = math_inline("T_{\\text{inc}}") + "", t276, t277, th4, t278, br15, t279, html_tag_5, raw7_value = math_inline("T_{\\text{inf}}") + "", t280, t281, tr1, td0, a5, t283, td1, t285, td2, t287, td3, t289, td4, t291, tr2, td5, a6, t293, td6, t295, td7, t297, td8, t299, td9, t301, tr3, td10, a7, t303, td11, t305, td12, t307, td13, t309, td14, t311, tr4, td15, a8, t313, td16, t315, td17, t317, td18, t318, td19, t319, tr5, td20, a9, t321, td21, t323, td22, t325, td23, t327, td24, t328, tr6, td25, a10, t330, td26, t332, td27, t334, td28, t336, td29, t338, tr7, td30, a11, t340, td31, t342, td32, t344, td33, t346, td34, t348, tr8, td35, a12, t350, td36, t352, td37, t353, td38, t355, td39, t356, tr9, td40, a13, t358, td41, t360, td42, t362, td43, t363, td44, t364, tr10, td45, a14, t366, td46, t368, td47, t369, td48, t371, td49, t373, td50, t374, tr11, td51, a15, t376, td52, t378, td53, t380, td54, t381, td55, t382, p4, t383, a16, t385, a17, t387, t388, p5, t389, a18, t391, a19, t393, t394, p6, a20, script, t395, p7, b6, br16, t397, html_tag_6, raw8_value = math_inline("I,R") + "", t398, i14, t400, i15, t402, i16, t404, t405, p8, b7, br17, t407, a21, t409, a22, t411, a23, t413, a24, t415, t416, div122, div121, div120, t418, form, textarea, current, dispose;
+    	var link, t0, h2, t2, div75, div50, div49, div0, b0, br0, t4, t5_value = ctx.Math.round(ctx.indexToTime(ctx.active_)) + "", t5, t6, div7, span0, t7, t8, div5, div1, t10, div4, div2, span1, t12, i0, t13_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][0])) + "", t13, t14, t15_value = (100*ctx.Iters[ctx.active_][0]).toFixed(2) + "", t15, t16, t17, div3, span2, t19, i1, t20_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[0])) + "", t20, t21, t22, div6, t24, div14, updating_checked, t25, t26, div12, div8, t28, div11, div9, span3, t30, i2, t31_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][1])) + "", t31, t32, t33_value = (100*ctx.Iters[ctx.active_][1]).toFixed(2) + "", t33, t34, t35, div10, span4, t37, i3, t38_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[1])) + "", t38, t39, t40, div13, t42, div21, updating_checked_1, t43, t44, div19, div15, t46, div18, div16, span5, t48, i4, t49_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][2])) + "", t49, t50, t51_value = (100*ctx.Iters[ctx.active_][2]).toFixed(2) + "", t51, t52, t53, div17, span6, t55, i5, t56_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[2])) + "", t56, t57, t58, div20, t59, i6, t61, t62, div28, t63, t64, div26, div22, t66, div25, div23, span7, t68, i7, t69_value = formatNumber$1(ctx.Math.round(ctx.N* (1-ctx.Iters[ctx.active_][0]-ctx.Iters[ctx.active_][1]-ctx.Iters[ctx.active_][2])+ctx.I0 )) + "", t69, t70, t71_value = ((100*(1-ctx.Iters[ctx.active_][0]-ctx.Iters[ctx.active_][1]-ctx.Iters[ctx.active_][2]-ctx.I0/ctx.N))).toFixed(2) + "", t71, t72, t73, div24, span8, t75, i8, t76_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.get_d(ctx.active_)[3]+ctx.get_d(ctx.active_)[4]+ctx.get_d(ctx.active_)[5]+ctx.get_d(ctx.active_)[6]+ctx.get_d(ctx.active_)[7]) )) + "", t76, t77, t78, div27, t80, div34, updating_checked_2, t81, t82, div32, div29, t84, div31, div30, span9, t86, i9, t87_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.Iters[ctx.active_][7]+ctx.Iters[ctx.active_][8]) )) + "", t87, t88, t89_value = (100*(ctx.Iters[ctx.active_][7]+ctx.Iters[ctx.active_][8])).toFixed(2) + "", t89, t90, t91, div33, t93, div41, t94, updating_checked_3, t95, div39, div35, t97, div37, div36, span10, t99, i10, t100_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.Iters[ctx.active_][5]+ctx.Iters[ctx.active_][6]) )) + "", t100, t101, t102_value = (100*(ctx.Iters[ctx.active_][5]+ctx.Iters[ctx.active_][6])).toFixed(2) + "", t102, t103, t104, div38, span11, t106, i11, t107_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.get_d(ctx.active_)[5]+ctx.get_d(ctx.active_)[6]))) + "", t107, t108, t109, div40, t111, div48, t112, updating_checked_4, t113, div46, div42, t115, div45, div43, span12, t117, i12, t118_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][9])) + "", t118, t119, t120_value = (100*ctx.Iters[ctx.active_][9]).toFixed(2) + "", t120, t121, t122, div44, span13, t124, i13, t125_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[9])) + "", t125, t126, t127, div47, t129, div74, div51, updating_checked_5, updating_active, t130, div52, t131, div53, t132, div61, div60, div54, span14, raw0_value = math_inline("\\mathcal{R}_t=" + (ctx.R0*ctx.InterventionAmt).toFixed(2) ) + "", t133, t134, show_if = ctx.xScaleTime(ctx.InterventionTime) >= 100, t135, div58, div55, t136, t137_value = format("d")(ctx.InterventionTime) + "", t137, t138, span15, div56, t140, div57, svg, g1, g0, path, t141, div59, t142, div69, div68, div67, div66, div63, div62, t143, br1, t144, div65, div64, t145_value = (ctx.InterventionAmt).toFixed(2) + "", t145, t146, input0, t147, div70, t148, div73, div72, updating_checked_6, div71, t150, div117, div79, div76, t152, div77, t153, div78, t155, div116, div85, div80, t157, div81, t158, br2, t159, div82, t160_value = format(",")(ctx.Math.round(ctx.N)) + "", t160, t161, input1, t162, div83, t163, br3, t164, div84, t165, t166, input2, t167, div90, div88, div86, t168, html_tag, raw1_value = math_inline("\\mathcal{R}_0") + "", t169, div87, t170, br4, t171, div89, t172, t173, input3, t174, div96, div91, t176, div92, t177, html_tag_1, raw2_value = math_inline("T_{\\text{inc}}") + "", t178, br5, t179, div93, t180_value = (ctx.D_incbation).toFixed(2) + "", t180, t181, t182, input4, t183, div94, t184, html_tag_2, raw3_value = math_inline("T_{\\text{inf}}") + "", t185, br6, t186, div95, t187, t188, t189, input5, t190, div97, t191, div103, div98, t193, div99, t194, br7, t195, div100, t196_value = (ctx.CFR*100).toFixed(2) + "", t196, t197, t198, input6, t199, div101, t200, br8, t201, div102, t202, t203, t204, input7, input7_min_value, t205, div109, div104, t207, div105, t208, br9, t209, div106, t210, t211, t212, input8, t213, div107, t214, br10, t215, div108, t216, t217, t218, input9, t219, div115, div110, t221, div111, t222, br11, t223, div112, t224_value = (ctx.P_SEVERE*100).toFixed(2) + "", t224, t225, t226, input10, t227, div113, t228, br12, t229, div114, t230, t231, t232, input11, t233, div118, t234, p0, t236, p1, t237, b1, a0, t239, t240, b2, t242, span16, b3, t244, span17, b4, t246, span18, b5, t248, a1, t250, a2, t252, span19, t253, t254, p2, t255, t256_value = ctx.Math.round(ctx.indexToTime(ctx.active_)) + "", t256, t257, a3, t259, input12, t260, t261_value = ((1-(ctx.Math.pow(1 - (ctx.Iters[ctx.active_][2])*(0.45/100), ctx.p_num_ind)))*100).toFixed(5) + "", t261, t262, a4, t264, t265, p3, t267, div119, table, tr0, th0, t268, th1, t270, th2, t271, br13, t272, html_tag_3, raw5_value = math_inline("\\mathcal{R}_0") + "", t273, th3, t274, br14, t275, html_tag_4, raw6_value = math_inline("T_{\\text{inc}}") + "", t276, t277, th4, t278, br15, t279, html_tag_5, raw7_value = math_inline("T_{\\text{inf}}") + "", t280, t281, tr1, td0, a5, t283, td1, t285, td2, t287, td3, t289, td4, t291, tr2, td5, a6, t293, td6, t295, td7, t297, td8, t299, td9, t301, tr3, td10, a7, t303, td11, t305, td12, t307, td13, t309, td14, t311, tr4, td15, a8, t313, td16, t315, td17, t317, td18, t318, td19, t319, tr5, td20, a9, t321, td21, t323, td22, t325, td23, t327, td24, t328, tr6, td25, a10, t330, td26, t332, td27, t334, td28, t336, td29, t338, tr7, td30, a11, t340, td31, t342, td32, t344, td33, t346, td34, t348, tr8, td35, a12, t350, td36, t352, td37, t353, td38, t355, td39, t356, tr9, td40, a13, t358, td41, t360, td42, t362, td43, t363, td44, t364, tr10, td45, a14, t366, td46, t368, td47, t369, td48, t371, td49, t373, td50, t374, tr11, td51, a15, t376, td52, t378, td53, t380, td54, t381, td55, t382, p4, t383, a16, t385, a17, t387, t388, p5, t389, a18, t391, a19, t393, a20, t395, t396, p6, b6, br16, t398, html_tag_6, raw8_value = math_inline("I,R") + "", t399, i14, t401, i15, t403, i16, t405, t406, p7, b7, br17, t408, a21, t410, a22, t412, a23, t414, a24, t416, t417, div122, div121, div120, t419, form, textarea, current, dispose;
 
     	var checkbox0 = new Checkbox({
     		props: { color: "#CCC" },
@@ -23463,51 +23732,50 @@
     			t391 = text(" or email me ");
     			a19 = element("a");
     			a19.textContent = "here";
-    			t393 = text(".");
-    			t394 = space();
-    			p6 = element("p");
+    			t393 = text(". My ");
     			a20 = element("a");
-    			script = element("script");
-    			t395 = space();
-    			p7 = element("p");
+    			a20.textContent = "website";
+    			t395 = text(".");
+    			t396 = space();
+    			p6 = element("p");
     			b6 = element("b");
     			b6.textContent = "Model Details ";
     			br16 = element("br");
-    			t397 = text("\nThe clinical dynamics in this model are an elaboration on SEIR that simulates the disease's progression at a higher resolution, subdividing ");
-    			t398 = text(" into ");
+    			t398 = text("\nThe clinical dynamics in this model are an elaboration on SEIR that simulates the disease's progression at a higher resolution, subdividing ");
+    			t399 = text(" into ");
     			i14 = element("i");
     			i14.textContent = "mild";
-    			t400 = text(" (patients who recover without the need for hospitalization), ");
+    			t401 = text(" (patients who recover without the need for hospitalization), ");
     			i15 = element("i");
     			i15.textContent = "moderate";
-    			t402 = text(" (patients who require hospitalization but survive) and ");
+    			t403 = text(" (patients who require hospitalization but survive) and ");
     			i16 = element("i");
     			i16.textContent = "fatal";
-    			t404 = text(" (patients who require hospitalization and do not survive). Each of these variables follows its own trajectory to the final outcome, and the sum of these compartments add up to the values predicted by SEIR. Please refer to the source code for details. Note that we assume, for simplicity, that all fatalities come from hospitals, and that all fatal cases are admitted to hospitals immediately after the infectious period.");
-    			t405 = space();
-    			p8 = element("p");
+    			t405 = text(" (patients who require hospitalization and do not survive). Each of these variables follows its own trajectory to the final outcome, and the sum of these compartments add up to the values predicted by SEIR. Please refer to the source code for details. Note that we assume, for simplicity, that all fatalities come from hospitals, and that all fatal cases are admitted to hospitals immediately after the infectious period.");
+    			t406 = space();
+    			p7 = element("p");
     			b7 = element("b");
     			b7.textContent = "Acknowledgements ";
     			br17 = element("br");
-    			t407 = space();
+    			t408 = space();
     			a21 = element("a");
     			a21.textContent = "Steven De Keninck";
-    			t409 = text(" for RK4 Integrator. ");
+    			t410 = text(" for RK4 Integrator. ");
     			a22 = element("a");
     			a22.textContent = "Chris Olah";
-    			t411 = text(", ");
+    			t412 = text(", ");
     			a23 = element("a");
     			a23.textContent = "Shan Carter";
-    			t413 = text(" and ");
+    			t414 = text(" and ");
     			a24 = element("a");
     			a24.textContent = "Ludwig Schubert";
-    			t415 = text(" wonderful feedback. Charlie Huang for context and discussion.");
-    			t416 = space();
+    			t416 = text(" wonderful feedback. Charlie Huang for context and discussion.");
+    			t417 = space();
     			div122 = element("div");
     			div121 = element("div");
     			div120 = element("div");
     			div120.textContent = "Export parameters:";
-    			t418 = space();
+    			t419 = space();
     			form = element("form");
     			textarea = element("textarea");
     			attr_dev(link, "rel", "stylesheet");
@@ -24406,44 +24674,37 @@
     			attr_dev(a19, "href", "mailto:izmegabe@gmail.com");
     			attr_dev(a19, "class", "svelte-1vzb36m");
     			add_location(a19, file$3, 1113, 85, 43229);
+    			attr_dev(a20, "href", "http://gabgoh.github.io/");
+    			attr_dev(a20, "class", "svelte-1vzb36m");
+    			add_location(a20, file$3, 1113, 134, 43278);
     			attr_dev(p5, "class", "center svelte-1vzb36m");
     			add_location(p5, file$3, 1112, 0, 43125);
-    			script.async = true;
-    			attr_dev(script, "src", "https://platform.twitter.com/widgets.js");
-    			attr_dev(script, "charset", "utf-8");
-    			add_location(script, file$3, 1117, 116, 43416);
-    			attr_dev(a20, "href", "https://twitter.com/gabeeegoooh?ref_src=twsrc%5Etfw");
-    			attr_dev(a20, "class", "twitter-follow-button svelte-1vzb36m");
-    			attr_dev(a20, "data-show-count", "false");
-    			add_location(a20, file$3, 1117, 0, 43300);
+    			add_location(b6, file$3, 1122, 0, 43590);
+    			add_location(br16, file$3, 1122, 22, 43612);
+    			html_tag_6 = new HtmlTag(raw8_value, t399);
+    			add_location(i14, file$3, 1123, 172, 43789);
+    			add_location(i15, file$3, 1123, 245, 43862);
+    			add_location(i16, file$3, 1123, 316, 43933);
     			attr_dev(p6, "class", "center svelte-1vzb36m");
-    			add_location(p6, file$3, 1116, 0, 43281);
-    			add_location(b6, file$3, 1122, 0, 43530);
-    			add_location(br16, file$3, 1122, 22, 43552);
-    			html_tag_6 = new HtmlTag(raw8_value, t398);
-    			add_location(i14, file$3, 1123, 172, 43729);
-    			add_location(i15, file$3, 1123, 245, 43802);
-    			add_location(i16, file$3, 1123, 316, 43873);
-    			attr_dev(p7, "class", "center svelte-1vzb36m");
-    			add_location(p7, file$3, 1121, 0, 43509);
-    			add_location(b7, file$3, 1127, 0, 44334);
-    			add_location(br17, file$3, 1127, 25, 44359);
+    			add_location(p6, file$3, 1121, 0, 43569);
+    			add_location(b7, file$3, 1127, 0, 44394);
+    			add_location(br17, file$3, 1127, 25, 44419);
     			attr_dev(a21, "href", "https://enkimute.github.io/");
     			attr_dev(a21, "class", "svelte-1vzb36m");
-    			add_location(a21, file$3, 1128, 0, 44364);
+    			add_location(a21, file$3, 1128, 0, 44424);
     			attr_dev(a22, "href", "https://twitter.com/ch402");
     			attr_dev(a22, "class", "svelte-1vzb36m");
-    			add_location(a22, file$3, 1128, 82, 44446);
+    			add_location(a22, file$3, 1128, 82, 44506);
     			attr_dev(a23, "href", "https://twitter.com/shancarter");
     			attr_dev(a23, "class", "svelte-1vzb36m");
-    			add_location(a23, file$3, 1128, 134, 44498);
+    			add_location(a23, file$3, 1128, 134, 44558);
     			attr_dev(a24, "href", "https://twitter.com/ludwigschubert");
     			attr_dev(a24, "class", "svelte-1vzb36m");
-    			add_location(a24, file$3, 1129, 9, 44560);
-    			attr_dev(p8, "class", "center svelte-1vzb36m");
-    			add_location(p8, file$3, 1126, 0, 44313);
+    			add_location(a24, file$3, 1129, 9, 44620);
+    			attr_dev(p7, "class", "center svelte-1vzb36m");
+    			add_location(p7, file$3, 1126, 0, 44373);
     			attr_dev(div120, "class", "legendtext svelte-1vzb36m");
-    			add_location(div120, file$3, 1137, 4, 44829);
+    			add_location(div120, file$3, 1137, 4, 44889);
     			attr_dev(textarea, "type", "textarea");
     			attr_dev(textarea, "rows", "1");
     			attr_dev(textarea, "cols", "5000");
@@ -24454,15 +24715,15 @@
     			attr_dev(textarea, "id", "fname");
     			attr_dev(textarea, "name", "fname");
     			textarea.value = ctx.state;
-    			add_location(textarea, file$3, 1139, 6, 44895);
-    			add_location(form, file$3, 1138, 4, 44882);
+    			add_location(textarea, file$3, 1139, 6, 44955);
+    			add_location(form, file$3, 1138, 4, 44942);
     			attr_dev(div121, "class", "center svelte-1vzb36m");
     			set_style(div121, "padding", "10px");
     			set_style(div121, "margin-top", "3px");
     			set_style(div121, "width", "925px");
-    			add_location(div121, file$3, 1136, 2, 44751);
+    			add_location(div121, file$3, 1136, 2, 44811);
     			set_style(div122, "margin-bottom", "30px");
-    			add_location(div122, file$3, 1134, 0, 44714);
+    			add_location(div122, file$3, 1134, 0, 44774);
 
     			dispose = [
     				listen_dev(div64, "mousedown", ctx.lock_yaxis),
@@ -25159,41 +25420,39 @@
     			append_dev(p5, t391);
     			append_dev(p5, a19);
     			append_dev(p5, t393);
-    			insert_dev(target, t394, anchor);
+    			append_dev(p5, a20);
+    			append_dev(p5, t395);
+    			insert_dev(target, t396, anchor);
     			insert_dev(target, p6, anchor);
-    			append_dev(p6, a20);
-    			append_dev(a20, script);
-    			insert_dev(target, t395, anchor);
+    			append_dev(p6, b6);
+    			append_dev(p6, br16);
+    			append_dev(p6, t398);
+    			html_tag_6.m(p6);
+    			append_dev(p6, t399);
+    			append_dev(p6, i14);
+    			append_dev(p6, t401);
+    			append_dev(p6, i15);
+    			append_dev(p6, t403);
+    			append_dev(p6, i16);
+    			append_dev(p6, t405);
+    			insert_dev(target, t406, anchor);
     			insert_dev(target, p7, anchor);
-    			append_dev(p7, b6);
-    			append_dev(p7, br16);
-    			append_dev(p7, t397);
-    			html_tag_6.m(p7);
-    			append_dev(p7, t398);
-    			append_dev(p7, i14);
-    			append_dev(p7, t400);
-    			append_dev(p7, i15);
-    			append_dev(p7, t402);
-    			append_dev(p7, i16);
-    			append_dev(p7, t404);
-    			insert_dev(target, t405, anchor);
-    			insert_dev(target, p8, anchor);
-    			append_dev(p8, b7);
-    			append_dev(p8, br17);
-    			append_dev(p8, t407);
-    			append_dev(p8, a21);
-    			append_dev(p8, t409);
-    			append_dev(p8, a22);
-    			append_dev(p8, t411);
-    			append_dev(p8, a23);
-    			append_dev(p8, t413);
-    			append_dev(p8, a24);
-    			append_dev(p8, t415);
-    			insert_dev(target, t416, anchor);
+    			append_dev(p7, b7);
+    			append_dev(p7, br17);
+    			append_dev(p7, t408);
+    			append_dev(p7, a21);
+    			append_dev(p7, t410);
+    			append_dev(p7, a22);
+    			append_dev(p7, t412);
+    			append_dev(p7, a23);
+    			append_dev(p7, t414);
+    			append_dev(p7, a24);
+    			append_dev(p7, t416);
+    			insert_dev(target, t417, anchor);
     			insert_dev(target, div122, anchor);
     			append_dev(div122, div121);
     			append_dev(div121, div120);
-    			append_dev(div121, t418);
+    			append_dev(div121, t419);
     			append_dev(div121, form);
     			append_dev(form, textarea);
     			current = true;
@@ -25636,13 +25895,11 @@
     				detach_dev(p4);
     				detach_dev(t388);
     				detach_dev(p5);
-    				detach_dev(t394);
+    				detach_dev(t396);
     				detach_dev(p6);
-    				detach_dev(t395);
+    				detach_dev(t406);
     				detach_dev(p7);
-    				detach_dev(t405);
-    				detach_dev(p8);
-    				detach_dev(t416);
+    				detach_dev(t417);
     				detach_dev(div122);
     			}
 

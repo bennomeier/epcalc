@@ -102,13 +102,11 @@
 
 function cases(caseType, country, state) {
     // This function returns cumulative cases based on the John Hopkins University git repository.
-    // At present it is possible to specify a country, but not a region.
-    // THIS WILL NOT WORK FOR COUNTRIES THAT ARE DIVIDED INTO MULTIPLE REGIONS.
 
     // Arguments
     // caseType: either "Confirmed", "Deaths", or "Recovered"
     // country: a country
-    // state: a province/state. Leave empty if this does not apply, but set it e.g. to "United Kingdom" to get the apropriate data for all of the United Kingdom.
+    // state: a province/state. Leave empty if this does not apply (e.g. for Germany), but set it e.g. to "United Kingdom" to get the apropriate data for the United Kingdom.
 
     // url for copy and paste https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv
     
