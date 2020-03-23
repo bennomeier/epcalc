@@ -1,4 +1,18 @@
-*Psst — looking for a shareable component template? Go here --> [sveltejs/component-template](https://github.com/sveltejs/component-template)*
+# EPCALC Fork
+
+This is a fork of Gabgoh's epcalc epidemic calculator.
+
+The objective of this project is to include Johns Hopkins University real-time data of the pandemic.
+
+These data may be supplemented in the future with country specific information such as population sizes, and descriptive rates.
+
+The faint hope is that a simulation that projects the current data into the future may facilitate a stronger, faster response to the pandemic.
+
+The simulation uses a simple SEIR model.
+
+Now is not the time to question this model or that model, now is the time to accept the simple dynamics of the pandemic and act.
+
+Please feel free to reuse the code in this repository in whichever way you like.
 
 ---
 

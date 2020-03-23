@@ -1,7 +1,6 @@
 <script>
   import { scaleLinear, scaleLog } from 'd3-scale';
   import { drag } from 'd3-drag';
-//  import { csv } from 'd3-fetch';
   import { selectAll } from 'd3-selection'
   import { onMount } from 'svelte';
   import { csv } from 'd3-fetch';
@@ -56,6 +55,10 @@
     .domain([0, tmax])
     .range([padding.left, width - padding.right]);
 
+  $: timeToIndex = scaleLinear()
+    .domain([0, tmax])
+    .range([0, y.length])
+
   $: indexToTime = scaleLinear()
     .domain([0, y.length])
     .range([0, tmax])
@@ -99,49 +102,66 @@
   var data = []
 
 
+function aggregatedData(country, state) {
+    var basePath = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-"
+    var pathConfirmed = basePath.concat("Confirmed.csv")
+    var pathDeaths = basePath.concat("Deaths.csv")
+    var pathRecovered = basePath.concat("Recovered.csv")
 
-function cases(caseType, country, state) {
-    // This function returns cumulative cases based on the John Hopkins University git repository.
+    console.log(pathRecovered);
 
-    // Arguments
-    // caseType: either "Confirmed", "Deaths", or "Recovered"
-    // country: a country
-    // state: a province/state. Leave empty if this does not apply (e.g. for Germany), but set it e.g. to "United Kingdom" to get the apropriate data for the United Kingdom.
-
-    // url for copy and paste https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv
-    
-    var path = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-".concat(caseType,  ".csv")
-
-    var totalCases = [];
-    csv(path).then(function(data3) {
-	data3.forEach(function(d) {
-	    if (d["Country/Region"] == country) {
-		
-		//console.log(d); // this prints the entire country information for the given caseType
-
-		// if no state is given take the first hit
-		// else if a state is given make sure it equals the entry in the record.
-		if (state.length == 0 ||  d["Province/State"] == state) {
-
-		    var i = 0;
-		    //console.log(d["Province/State"]);
-		    for (var key in d) {
-			if (d.hasOwnProperty(key)) {
-			    if (i > 3) {
-				totalCases.push(  +d[key] );
-    			    }
-			    i++;
+    var returnData = [[],[],[]]; // this stores all the days from github
+    var returnData2 = []; // this just stores a subset for plotting
+    var k = 0;
+    // based on this> 
+    Promise.all([csv(pathDeaths), csv(pathRecovered), csv(pathConfirmed)]).then(function(files) {
+	files.forEach(function(file) {								
+	    var totalCases = []
+	    file.forEach(function(line) {
+		if (line["Country/Region"] == country) {
+		    //console.log(d); // this prints the entire country information for the given caseType
+		    // if no state is given take the first hit
+		    // else if a state is given make sure it equals the entry in the record.
+		    if (state.length == 0 ||  line["Province/State"] == state) {
+			var i = 0;
+			//console.log(d["Province/State"]);
+			for (var key in line) {
+			    if (line.hasOwnProperty(key)) {
+				if (i > 3) {
+				    returnData[k].push(  +line[key] );
+    				}
+				i++;
+			    }
 			}
 		    }
 		}
-	    }
-	});
+	    })
+	    k++;
+	})
+	return returnData // this is all the data. Now we need to create the 33 item subset
+    }).then(function(returnData) {
+	var length = returnData[0].length;
+
+	var index = 0;
+	for (var i = 0; i < 33; i++) {
+	    index = Math.round(i/parseFloat(33)*length);
+	    //console.log(index);
+	    returnData2.push([returnData[0][index], returnData[1][index], returnData[2][index]]);
+	    //returnData2[1].push(returnData[1][index]);
+	    //returnData2[2].push(returnData[2][index]);
+	}
+
+	return returnData2;
+    }).catch(function(err) {
+	console.log(err);    //handle error
     });
-    return totalCases
+    return returnData2
 }
 
 function dailyCases(totalCases) {
     // calculate the daily Cases based on a list of total cases.
+    console.log("Daily New");
+    
     var dailyNew = []
     dailyNew.push(+ totalCases[0]);
     for (var i = 1; i < totalCases.length; i++) {
@@ -154,16 +174,10 @@ function dailyCases(totalCases) {
 var country = "United Kingdom";
 var state = "United Kingdom";
 
-var totalConfirmed = cases("Confirmed", country, state);
-var dailyConfirmed = dailyCases(totalConfirmed)
+var dataJHU = aggregatedData(country, state);
+console.log(dataJHU);
 
-var totalRecovered = cases("Recovered", country, state);
-var dailyRecovered = dailyCases(totalRecovered)
 
-var totalDeaths = cases("Deaths", country, state);
-var dailyDeaths = dailyCases(totalDeaths)
-
-console.log(totalDeaths);
 
 //}//);
 	
@@ -275,7 +289,18 @@ console.log(totalDeaths);
       {/each}
     </g>
 
-    <g class='bars'>
+         
+       
+       
+       <g class='bars'>
+       <!-- Insertion to show real world data -->
+       <!-- y starts from the top -->
+       <!-- the day is in percent of the whole simulation -->
+       <!-- real cases are deaths, recovereds, and confirmed --> 
+ 
+       
+       {console.log(y.length)}
+       
       {#each range(y.length) as i}
         <rect
           on:mouseover={() => showTip(i)}
@@ -291,6 +316,7 @@ console.log(totalDeaths);
 	
 
 
+ 
 
         {#each range(colors.length) as j}
           {#if !log}
