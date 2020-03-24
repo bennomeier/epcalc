@@ -1,3 +1,4 @@
+
 <script>
   import { scaleLinear, scaleLog } from 'd3-scale';
   import { drag } from 'd3-drag';
@@ -109,12 +110,13 @@ function aggregatedData(country, state) {
     var pathRecovered = basePath.concat("Recovered.csv")
 
     console.log(pathRecovered);
+    console.log("Hello Benno");
 
     var returnData = [[],[],[]]; // this stores all the days from github
     var returnData2 = []; // this just stores a subset for plotting
     var k = 0;
     // based on this> 
-    Promise.all([csv(pathDeaths), csv(pathRecovered), csv(pathConfirmed)]).then(function(files) {
+    return Promise.all([csv(pathDeaths), csv(pathRecovered), csv(pathConfirmed)]).then(function(files) {
 	files.forEach(function(file) {								
 	    var totalCases = []
 	    file.forEach(function(line) {
@@ -150,12 +152,12 @@ function aggregatedData(country, state) {
 	    //returnData2[1].push(returnData[1][index]);
 	    //returnData2[2].push(returnData[2][index]);
 	}
+	console.log(returnData2.length);
 
 	return returnData2;
     }).catch(function(err) {
 	console.log(err);    //handle error
     });
-    return returnData2
 }
 
 function dailyCases(totalCases) {
@@ -174,9 +176,19 @@ function dailyCases(totalCases) {
 var country = "United Kingdom";
 var state = "United Kingdom";
 
-var dataJHU = aggregatedData(country, state);
-console.log(dataJHU);
+//var dataJHU = aggregatedData(country, state);
+//console.log(dataJHU);
 
+let dataJHU;
+let length;
+
+onMount(() => {
+    dataJHU = aggregatedData(country, state);
+    length = dataJHU.then(function(data) {
+	console.log(data.length);
+	return data.length;
+    })
+});
 
 
 //}//);
@@ -267,8 +279,9 @@ console.log(dataJHU);
 
 </style>
 
+
 <div style="width:{width+15}px; height: {height}px; position: relative; top:20px">
-  <svg style="position:absolute; height: {height}px">
+  <svg style="position:absolute; height: {height}px" id="myGraph">
 
     <!-- y axis -->
     <g class="axis y-axis" transform="translate(0,{padding.top})">
@@ -297,10 +310,19 @@ console.log(dataJHU);
        <!-- y starts from the top -->
        <!-- the day is in percent of the whole simulation -->
        <!-- real cases are deaths, recovereds, and confirmed --> 
- 
+
        
-       {console.log(y.length)}
+       {#await aggregatedData(country, country) then data}
+       {console.log(data)}
+       {#each range(data.length) as i}
+       {console.log(i)}
+       {console.log(data[i])}
+       {/each}
+       {console.log(data)}
+       {/await}
+
        
+
       {#each range(y.length) as i}
         <rect
           on:mouseover={() => showTip(i)}
@@ -313,7 +335,7 @@ console.log(dataJHU);
           height="{height}"
           style="fill:white; opacity: 0">     
         </rect>
-	
+       
 
 
  

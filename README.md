@@ -1,6 +1,8 @@
 # EPCALC Fork
 
-This is a fork of Gabgoh's epcalc epidemic calculator.
+*Update 2020/03/24: Asynchronous import of the github data using d3-fetch is now implemented, and work has begun on the svelte code that draws the data.*
+
+This is a fork of @gabgoh's epcalc epidemic calculator.
 
 The objective of this project is to include Johns Hopkins University real-time data of the pandemic.
 
