@@ -4,6 +4,7 @@
   // import { Date } from "d3-time"
   import Chart from './Chart.svelte';
   import { onMount } from 'svelte';
+  import Select from 'svelte-select';
   import { selectAll } from 'd3-selection'
   import { drag } from 'd3-drag';
   import queryString from "query-string";
@@ -55,9 +56,11 @@
     }
     for (var r=y.slice(),l=0; l<_y.length; l++) for (var j=0; j<k.length; j++) r[l]=r[l]+h*(k[j][l])*(m[ki-1][j]);
     return r;
-  }
-
-
+									  }
+  const countries = ['Germany', 'United Kingdom', 'France'];
+									  
+  $: country           = "Germany"
+  $: province          = ""									  
   $: Time_to_death     = 32
   $: logN              = Math.log(7e6)
   $: N                 = Math.exp(logN)
@@ -76,8 +79,13 @@
   $: Xmax              = 110000
   $: dt                = 2
   $: P_SEVERE          = 0.2
-  $: duration          = 7*12*1e10
+  $: duration          = 7*12*1e1
 
+  function checkRegion() {
+    console.log("Hello, Country changed");
+    console.log(country);
+  }
+									  
   $: state = location.protocol + '//' + location.host + location.pathname + "?" + queryString.stringify({"Time_to_death":Time_to_death,
                "logN":logN,
                "I0":I0,
@@ -151,7 +159,7 @@
     var Iters = []
     while (steps--) { 
       if ((steps+1) % (sample_step) == 0) {
-            //    Dead   Hospital          Recovered        Infected   Exposed
+            //    Dead   Hosspital          Recovered        Infected   Exposed
         P.push([ N*v[9], N*(v[5]+v[6]),  N*(v[7] + v[8]), N*v[2],    N*v[1] ])
         Iters.push(v)
         TI.push(N*(1-v[0]))
@@ -332,6 +340,7 @@
   window.addEventListener('mouseup', unlock_yaxis);
 
   $: checked = [true, true, false, true, true]
+  $: checkedReal = [checked[0], checked[2], checked[3]] // whehter to show deaths, recovered and confirmed of real world cases
   $: active  = 0
   $: active_ = active >= 0 ? active : Iters.length - 1
 
@@ -571,6 +580,19 @@
     border-spacing: 15px;
   }
 
+  .countrySelector {
+  font-family: nyt-franklin,helvetica,arial,sans-serif;
+  color: #666;
+  width: 200px;
+  }
+
+  select { display: block; width: 500px; max-width: 100%; }
+
+  select {
+    font-family: nyt-franklin,helvetica,arial,sans-serif;
+    color: #666;
+  }
+  
   .eqn {
     font-family: nyt-franklin,helvetica,arial,sans-serif;
     margin: auto;
@@ -582,6 +604,8 @@
     color:#666;
     font-size: 16.5px;
   }
+
+  
 
   th { font-weight: 500; text-align: left; padding-bottom: 5px; vertical-align: text-top;     border-bottom: 1px solid #DDD; }
 
@@ -733,6 +757,8 @@
     <div style="position:relative; top:60px; left: 10px">
       <Chart bind:checked={checked}
              bind:active={active}
+	     country={country}
+	     province={province}
              y = {P} 
              xmax = {Xmax} 
              total_infected = {total_infected} 
@@ -844,6 +870,31 @@
             </div>
           </div>
       </div>
+
+
+     <!------------------------------------------ -->
+     <!------------------------------------------ -->
+     <!------------------------------------------ -->
+     <!------------------------------------------ -->
+     <!------------------------------------------ -->
+     <!------------------------------------------ -->
+     <!------------------------------------------ -->
+
+     <!-- Country Specific Information -->
+     <div style="position:absolute; top: 100px; left: 500px; width: 300px; height: 300px;">
+       <div style="position:absolute; top: 0px; left: 0px; margin: 0px 0px 5px 4px;" class="countrySelector">
+         <select bind:value={country}>
+	  {#each countries as myCountry}
+			<option value={myCountry}>
+				{myCountry}
+			</option>
+		{/each}
+	</select>
+       </div>
+     </div>
+
+
+
 
 <!-- 
       {#if xScaleTime(InterventionTime+duration) < (width - padding.right)}

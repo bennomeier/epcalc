@@ -6,6 +6,7 @@
   import { onMount } from 'svelte';
   import { csv } from 'd3-fetch';
   import { createEventDispatcher } from 'svelte';
+  import { myRange} from './range.js';
 
   const dispatch = createEventDispatcher();
 
@@ -28,7 +29,8 @@
     }
     return x
   }
-
+  export let country;
+  export let province;
   export let y;
   export let tmax;
   export let xmax; 
@@ -76,6 +78,8 @@
     .domain([1,  ymax/1])
     .range([0, height - padding.bottom - padding.top]);
 
+ 
+
 
   $: innerWidth = width - (padding.left + padding.right);
   $: barWidth = innerWidth / y.length - 1.5;
@@ -98,25 +102,28 @@
   })()
   export let active;
   export let checked;
-
+$: checkedReal = [checked[0], checked[3]] 
   // var data = [[2   , 2  ], [5   , 2  ], [18  , 4  ], [28  , 6  ], [43  , 8  ], [61  , 12 ], [95  , 16 ], [139 , 19 ], [245 , 26 ], [388 , 34 ], [593 , 43 ], [978 , 54 ], [1501, 66 ], [2336, 77 ], [2922, 92 ], [3513, 107], [4747, 124]]
-  var data = []
+var data = [];
+
+// the real world data have only deaths, and confirmed. These correspond to elements 0, 2 and 3 in the color array
+var colorLookup = [0, 3];
 
 
-function aggregatedData(country, state) {
-    var basePath = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-"
-    var pathConfirmed = basePath.concat("Confirmed.csv")
-    var pathDeaths = basePath.concat("Deaths.csv")
-    var pathRecovered = basePath.concat("Recovered.csv")
-
-    console.log(pathRecovered);
-    console.log("Hello Benno");
+function aggregatedData(country, province) {
+    var basePath = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_"
+    var pathConfirmed = basePath.concat("confirmed_global.csv")
+    var pathDeaths = basePath.concat("deaths_global.csv")
 
     var returnData = [[],[],[]]; // this stores all the days from github
     var returnData2 = []; // this just stores a subset for plotting
     var k = 0;
-    // based on this> 
-    return Promise.all([csv(pathDeaths), csv(pathRecovered), csv(pathConfirmed)]).then(function(files) {
+    // based on this>
+
+    //console.log("Country: " + country);
+    //console.log("Province: " + province);
+    
+    return Promise.all([csv(pathDeaths), csv(pathConfirmed)]).then(function(files) {
 	files.forEach(function(file) {								
 	    var totalCases = []
 	    file.forEach(function(line) {
@@ -124,7 +131,9 @@ function aggregatedData(country, state) {
 		    //console.log(d); // this prints the entire country information for the given caseType
 		    // if no state is given take the first hit
 		    // else if a state is given make sure it equals the entry in the record.
-		    if (state.length == 0 ||  line["Province/State"] == state) {
+		    
+		    if (province.length == 0 ||  line["Province/State"] == state) {
+			//console.log(line);
 			var i = 0;
 			//console.log(d["Province/State"]);
 			for (var key in line) {
@@ -148,7 +157,7 @@ function aggregatedData(country, state) {
 	for (var i = 0; i < 33; i++) {
 	    index = Math.round(i/parseFloat(33)*length);
 	    //console.log(index);
-	    returnData2.push([returnData[0][index], returnData[1][index], returnData[2][index]]);
+	    returnData2.push([returnData[0][index], returnData[1][index]]);
 	    //returnData2[1].push(returnData[1][index]);
 	    //returnData2[2].push(returnData[2][index]);
 	}
@@ -173,8 +182,8 @@ function dailyCases(totalCases) {
 }
 
 // for e.g., Germany set country to "Germany" and state to ""
-var country = "United Kingdom";
-var state = "United Kingdom";
+//var country = "United Kingdom";
+//var state = "United Kingdom";
 
 //var dataJHU = aggregatedData(country, state);
 //console.log(dataJHU);
@@ -182,13 +191,15 @@ var state = "United Kingdom";
 let dataJHU;
 let length;
 
-onMount(() => {
-    dataJHU = aggregatedData(country, state);
-    length = dataJHU.then(function(data) {
-	console.log(data.length);
-	return data.length;
-    })
-});
+//onMount(() => {
+    //dataJHU = aggregatedData(country, province);
+    //length = dataJHU.then(function(data) {
+	//console.log(data.length);
+	//return data.length;
+   // })
+//});
+
+
 
 
 //}//);
@@ -312,18 +323,34 @@ onMount(() => {
        <!-- real cases are deaths, recovereds, and confirmed --> 
 
        
-       {#await aggregatedData(country, country) then data}
+       {#await aggregatedData(country, province) then data}
        {console.log(data)}
        {#each range(data.length) as i}
-       {console.log(i)}
-       {console.log(data[i])}
+        {#each range(2) as j}
+          {#if !log}
+              <rect
+                on:mouseover={() => showTip(i)}
+                on:mouseout={() => showTip(-1)}
+                on:click={() => {lock = !lock; active_lock = indexToTime(i) }}
+                class="bar"
+                x="{xScale(i) + 2}"
+                y="{yScale( sum(data[i].slice(0,j+1), checkedReal) )}"
+                width="{barWidth}"
+                height="{Math.max(height - padding.bottom - yScale(data[i][j]*checked[colorLookup[j]] ),0)}" 
+                style="fill:{colors[colorLookup[j]]};
+                       opacity:{active == i ? 0.9: 0.6}">     
+       </rect>
+       {/if}
+       
+       
+       {/each}
        {/each}
        {console.log(data)}
        {/await}
 
        
 
-      {#each range(y.length) as i}
+       {#each myRange(33, y.length) as i}
         <rect
           on:mouseover={() => showTip(i)}
           on:mouseout={() => showTip(-1)}
@@ -334,11 +361,7 @@ onMount(() => {
           width="{barWidth+3}"
           height="{height}"
           style="fill:white; opacity: 0">     
-        </rect>
-       
-
-
- 
+       </rect>
 
         {#each range(colors.length) as j}
           {#if !log}

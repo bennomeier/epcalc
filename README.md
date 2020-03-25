@@ -1,6 +1,10 @@
 # EPCALC Fork
 
+*Update 2020/03/25: Update for new JHU data format. Real-time JHU Data for Deaths and Confirmed are now shown in the plot for a hard-coded country. 
+
 *Update 2020/03/24: Asynchronous import of the github data using d3-fetch is now implemented, and work has begun on the svelte code that draws the data.*
+
+---
 
 This is a fork of @gabgoh's epcalc epidemic calculator.
 
