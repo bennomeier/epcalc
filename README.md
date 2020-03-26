@@ -5,9 +5,13 @@ This is a fork of @gabgoh's epcalc epidemic calculator that shows country-specif
 *Update 2020/03/26: Reorganization of the code. A jhu.js module now loads the JHU data. For the past it is possible to plot the JHU data, the simulation, or both. Some country data are shown in the plot. For simple countries (no regions), the country can be passed to the app as a country argument, e.g. url.github.io/ . At present the logarithm of the population size should be passed as well, i.e.
 index.html?logN=15&country=Czechia
 
-The compiled App is now in a docs folder, and can be accessed at https://bennomeier.github.io/epcalc/index.html
+The compiled App can be accessed at https://bennomeier.github.io/epcalc/index.html
 
 To get information for a specific JHU listed country use, e.g., https://bennomeier.github.io/epcalc/index.html?country=Czechia&logN=16.18
+
+or https://bennomeier.github.io/epcalc/index.html?country=US&logN=19.6
+
+The next update will be a country-specific timeshift for the imported data.
 
 *Update 2020/03/25: Update for new JHU data format. Real-time JHU Data for Deaths and Confirmed are now shown in the plot for a hard-coded country. 
 
@@ -22,11 +26,7 @@ These data may be supplemented in the future with country specific information s
 
 The faint hope is that a simulation that projects the current data into the future may facilitate a stronger, faster response to the pandemic.
 
-The simulation uses a simple SEIR model.
-
-Now is not the time to question this model or that model, now is the time to accept the simple dynamics of the pandemic and act.
-
-Please feel free to reuse the code in this repository in whichever way you like.
+The simulation uses a simple SEIR model as implemented by Gabgoh.
 
 ---
 
