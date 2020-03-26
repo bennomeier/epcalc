@@ -7,7 +7,7 @@ index.html?logN=15&country=Czechia
 
 The compiled App is now in a docs folder, and can be accessed at https://bennomeier.github.io/epcalc/index.html
 
-To get information for a specific, JHU listed country use, e.g., https://bennomeier.github.io/epcalc/index.html?country=Czechia&logN=16.18
+To get information for a specific JHU listed country use, e.g., https://bennomeier.github.io/epcalc/index.html?country=Czechia&logN=16.18
 
 *Update 2020/03/25: Update for new JHU data format. Real-time JHU Data for Deaths and Confirmed are now shown in the plot for a hard-coded country. 
 
