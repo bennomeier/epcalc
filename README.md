@@ -1,5 +1,10 @@
 # EPCALC Fork
 
+*Update 2020/03/26: Reorganization of the code. A jhu.js module now loads the JHU data. For the past it is possible to plot the JHU data, the simulation, or both. Some country data are shown in the plot. For simple countries (no regions), the country can be passed to the app as a country argument, e.g. url.github.io/ . At present the logarithm of the population size should be passed as well, i.e.
+index.html?logN=15&country=Czechia
+
+The compiled App is now in a docs folder, and can be accessed at .... 
+
 *Update 2020/03/25: Update for new JHU data format. Real-time JHU Data for Deaths and Confirmed are now shown in the plot for a hard-coded country. 
 
 *Update 2020/03/24: Asynchronous import of the github data using d3-fetch is now implemented, and work has begun on the svelte code that draws the data.*

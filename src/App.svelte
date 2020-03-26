@@ -11,20 +11,19 @@
   import Checkbox from './Checkbox.svelte';
   import Arrow from './Arrow.svelte';
   import { format } from 'd3-format'
-  import { event } from 'd3-selection'
-
+  import { event } from 'd3-selection';
   import katex from 'katex';
+import {aggregatedData } from './jhu.js';
+import {getFatalitiesToday } from './jhu.js';
+import {getConfirmedToday } from './jhu.js';
 
   const legendheight = 67 
-
   function range(n){
     return Array(n).fill().map((_, i) => i);
   }
-
   function formatNumber(num) {
     return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')
   }
-
   var sum = function(arr, bools){
     var x = 0
     for (var i = 0; i < arr.length; i++) {
@@ -32,7 +31,6 @@
     }
     return x
   }
-
   var Integrators = {
     Euler    : [[1]],
     Midpoint : [[.5,.5],[0, 1]],
@@ -44,7 +42,6 @@
     RK4      : [[.5,.5],[.5,0,.5],[1,0,0,1],[1/6,1/3,1/3,1/6]],
     RK38     : [[1/3,1/3],[2/3,-1/3,1],[1,1,-1,1],[1/8,3/8,3/8,1/8]]
   };
-
   // f is a func of time t and state y
   // y is the initial state, t is the time, h is the timestep
   // updated y is returned.
@@ -56,13 +53,16 @@
     }
     for (var r=y.slice(),l=0; l<_y.length; l++) for (var j=0; j<k.length; j++) r[l]=r[l]+h*(k[j][l])*(m[ki-1][j]);
     return r;
-									  }
+  }
   const countries = ['Germany', 'United Kingdom', 'France'];
-									  
-  $: country           = "Germany"
-  $: province          = ""									  
+  $: dayZero = 20									  
+  $: country           = "US"
+  $: province          = ""
+  $: countryData    = aggregatedData(country, province)
+$: fatalitiesToday     = getFatalitiesToday(country, province)
+$: confirmedToday      = getConfirmedToday(country, province)
   $: Time_to_death     = 32
-  $: logN              = Math.log(7e6)
+  $: logN              = Math.log(80e6)
   $: N                 = Math.exp(logN)
   $: I0                = 1
   $: R0                = 2.2
@@ -73,21 +73,22 @@
   $: D_hospital_lag    = 5
   $: D_death           = Time_to_death - D_infectious 
   $: CFR               = 0.02  
-  $: InterventionTime  = 100  
+  $: InterventionTime  = 66  
   $: InterventionAmt   = 1/3
   $: Time              = 220
   $: Xmax              = 110000
   $: dt                = 2
   $: P_SEVERE          = 0.2
   $: duration          = 7*12*1e1
-
   function checkRegion() {
     console.log("Hello, Country changed");
     console.log(country);
   }
+
 									  
   $: state = location.protocol + '//' + location.host + location.pathname + "?" + queryString.stringify({"Time_to_death":Time_to_death,
-               "logN":logN,
+													 "logN":logN,
+													 "country":country,
                "I0":I0,
                "R0":R0,
                "D_incbation":D_incbation,
@@ -101,15 +102,12 @@
                "P_SEVERE": P_SEVERE})
 
   function get_solution(dt, N, I0, R0, D_incbation, D_infectious, D_recovery_mild, D_hospital_lag, D_recovery_severe, D_death, P_SEVERE, CFR, InterventionTime, InterventionAmt, duration) {
-
     var interpolation_steps = 40
     var steps = 110*interpolation_steps
     var dt = dt/interpolation_steps
     var sample_step = interpolation_steps
-
     var method = Integrators["RK4"]
     function f(t, x){
-
       // SEIR ODE
       if (t > InterventionTime && t < InterventionTime + duration){
         var beta = (InterventionAmt)*R0/(D_infectious)
@@ -131,11 +129,9 @@
       var R_Mild   = x[7] // Recovered
       var R_Severe = x[8] // Recovered
       var R_Fatal  = x[9] // Dead
-
       var p_severe = P_SEVERE
       var p_fatal  = CFR
       var p_mild   = 1 - P_SEVERE - CFR
-
       var dS        = -beta*I*S
       var dE        =  beta*I*S - a*E
       var dI        =  a*E - gamma*I
@@ -146,18 +142,19 @@
       var dR_Mild   =  (1/D_recovery_mild)*Mild
       var dR_Severe =  (1/D_recovery_severe)*Severe_H
       var dR_Fatal  =  (1/D_death)*Fatal
-
       //      0   1   2   3      4        5          6       7        8          9
       return [dS, dE, dI, dMild, dSevere, dSevere_H, dFatal, dR_Mild, dR_Severe, dR_Fatal]
     }
-
     var v = [1, 0, I0/(N-I0), 0, 0, 0, 0, 0, 0, 0]
     var t = 0
-
     var P  = []
     var TI = []
     var Iters = []
-    while (steps--) { 
+      while (steps--) {
+	  // It may be possible to shift the start of the simulation here. However it is probably
+	  // a better idea to shift the JHU data.
+	  
+	  // if ((steps > 30*interpolation_steps)) {// start simulation at later stage.
       if ((steps+1) % (sample_step) == 0) {
             //    Dead   Hosspital          Recovered        Infected   Exposed
         P.push([ N*v[9], N*(v[5]+v[6]),  N*(v[7] + v[8]), N*v[2],    N*v[1] ])
@@ -166,6 +163,12 @@
         // console.log((v[0] + v[1] + v[2] + v[3] + v[4] + v[5] + v[6] + v[7] + v[8] + v[9]))
         // console.log(v[0] , v[1] , v[2] , v[3] , v[4] , v[5] , v[6] , v[7] , v[8] , v[9])
       }
+	  //} else {
+	    //  P.push([0, 0, 0, 0, 0])
+	    //  TI.push(0)
+	  //}
+
+	  
       v =integrate(method,f,v,t,dt); 
       t+=dt
     }
@@ -176,13 +179,11 @@
             "Iters":Iters,
             "dIters": f}
   }
-
   function max(P, checked) {
     return P.reduce((max, b) => Math.max(max, sum(b, checked) ), sum(P[0], checked) )
   }
-
   $: Sol            = get_solution(dt, N, I0, R0, D_incbation, D_infectious, D_recovery_mild, D_hospital_lag, D_recovery_severe, D_death, P_SEVERE, CFR, InterventionTime, InterventionAmt, duration)
-  $: P              = Sol["P"].slice(0,100)
+  $: P              = Sol["P"].slice(0,100)  // only plot first 100 elements of the run. 
   $: timestep       = dt
   $: tmax           = dt*100
   $: deaths         = Sol["deaths"]
@@ -191,28 +192,22 @@
   $: Iters          = Sol["Iters"]
   $: dIters         = Sol["dIters"]
   $: Pmax           = max(P, checked)
-  $: lock           = false
-
+$: lock           = false
+$: totalDeaths = P[99][0]
   var colors = [ "#386cb0", "#8da0cb", "#4daf4a", "#f0027f", "#fdc086"]
-
   var Plock = 1
-
   var drag_y = function (){
     var dragstarty = 0
     var Pmaxstart = 0
-
     var dragstarted = function (d) {
       dragstarty = event.y  
       Pmaxstart  = Pmax
     }
-
     var dragged = function (d) {
       Pmax = Math.max( (Pmaxstart*(1 + (event.y - dragstarty)/500)), 10)
     }
-
     return drag().on("drag", dragged).on("start", dragstarted)
   }
-
   var drag_x = function (){
     var dragstartx = 0
     var dtstart = 0
@@ -231,57 +226,44 @@
     }
     return drag().on("drag", dragged).on("start", dragstarted).on("end", dragend)
   }
-
   var drag_intervention = function (){
     var dragstarty = 0
     var InterventionTimeStart = 0
-
     var dragstarted = function (d) {
       dragstarty = event.x  
       InterventionTimeStart = InterventionTime
       Plock = Pmax
       lock = true
     }
-
     var dragged = function (d) {
       // InterventionTime = Math.max( (*(1 + (event.x - dragstarty)/500)), 10)
       // console.log(event.x)
       InterventionTime = Math.min(tmax-1, Math.max(0, InterventionTimeStart + xScaleTimeInv(event.x - dragstarty)))
     }
-
     var dragend = function (d) {
       lock = false
     }
-
     return drag().on("drag", dragged).on("start", dragstarted).on("end", dragend)
   }
-
-
   var drag_intervention_end = function (){
     var dragstarty = 0
     var durationStart = 0
-
     var dragstarted = function (d) {
       dragstarty = event.x  
       durationStart = duration
       Plock = Pmax
       lock = true
     }
-
     var dragged = function (d) {
       // InterventionTime = Math.max( (*(1 + (event.x - dragstarty)/500)), 10)
       // console.log(event.x)
       duration = Math.min(tmax-1, Math.max(0, durationStart + xScaleTimeInv(event.x - dragstarty)))
     }
-
     var dragend = function (d) {
       lock = false
     }
-
     return drag().on("drag", dragged).on("start", dragstarted).on("end", dragend)
   }
-
-
   $: parsed = "";
   onMount(async () => {
     var drag_callback_y = drag_y()
@@ -293,10 +275,10 @@
     drag_callback_intervention(selectAll("#dottedline"))
     // var drag_callback_intervention_end = drag_intervention_end()
     // drag_callback_intervention_end(selectAll("#dottedline2"))
-
     if (typeof window !== 'undefined') {
       parsed = queryString.parse(window.location.search)
-      if (!(parsed.logN === undefined)) {logN = parsed.logN}
+	if (!(parsed.logN === undefined)) {logN = parsed.logN}
+	 if (!(parsed.country === undefined)) {country = parsed.country}
       if (!(parsed.I0 === undefined)) {I0 = parseFloat(parsed.I0)}
       if (!(parsed.R0 === undefined)) {R0 = parseFloat(parsed.R0)}
       if (!(parsed.D_incbation === undefined)) {D_incbation = parseFloat(parsed.D_incbation)}
@@ -310,40 +292,30 @@
       if (!(parsed.P_SEVERE === undefined)) {P_SEVERE = parseFloat(parsed.P_SEVERE)}
     }
   });
-
   function lock_yaxis(){
     Plock = Pmax
     lock  = true
   }
-
   function unlock_yaxis(){
     lock = false
   }
-
   const padding = { top: 20, right: 0, bottom: 20, left: 25 };
-
   let width  = 750;
   let height = 400;
-
   $: xScaleTime = scaleLinear()
     .domain([0, tmax])
     .range([padding.left, width - padding.right]);
-
   $: xScaleTimeInv = scaleLinear()
     .domain([0, width])
     .range([0, tmax]);
-
   $: indexToTime = scaleLinear()
     .domain([0, P.length])
     .range([0, tmax])
-
   window.addEventListener('mouseup', unlock_yaxis);
-
   $: checked = [true, true, false, true, true]
   $: checkedReal = [checked[0], checked[2], checked[3]] // whehter to show deaths, recovered and confirmed of real world cases
   $: active  = 0
   $: active_ = active >= 0 ? active : Iters.length - 1
-
   var Tinc_s = "\\color{#CCC}{T^{-1}_{\\text{inc}}} "
   var Tinf_s = "\\color{#CCC}{T^{-1}_{\\text{inf}}}"
   var Rt_s   = "\\color{#CCC}{\\frac{\\mathcal{R}_{t}}{T_{\\text{inf}}}} "
@@ -352,7 +324,6 @@
     displayMode: true,
     colorIsTextColor: true
   });
-
   function math_inline(str) {
     return katex.renderToString(str, {
     throwOnError: false,
@@ -360,7 +331,6 @@
     colorIsTextColor: true
     });
   }
-
   function math_display(str) {
     return katex.renderToString(str, {
     throwOnError: false,
@@ -370,17 +340,13 @@
   }
   
   $: p_num_ind = 40
-
   $: get_d = function(i){
     return dIters(indexToTime(i), Iters[i])
   }
-
   function get_milestones(P){
-
     function argmax(x, index) {
       return x.map((x, i) => [x[index], i]).reduce((r, a) => (a[0] > r[0] ? a : r))[1];
     }
-
      //    Dead   Hospital          Recovered        Infected   Exposed
     var milestones = []
     for (var i = 0; i < P.length; i++) {
@@ -389,16 +355,14 @@
         break
       }
     }
-
     var i = argmax(P, 1)
     milestones.push([i*dt, "Peak: " + format(",")(Math.round(P[i][1])) + " hospitalizations"])
-
     return milestones
   }
-
   $: milestones = get_milestones(P)
-  $: log = true
-
+$: log = true
+$: showJHU = true
+$: showSIM = false
 </script>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.css" integrity="sha384-bsHo4/LA+lkZv61JspMDQB9QP1TtO4IgOf2yYS+J6VdAYLVyx1c3XKcsHh0Vy8Ws" crossorigin="anonymous">
@@ -406,8 +370,6 @@
 <style>
   .small { font: italic 6px Source Code Pro; }
   @import url('https://fonts.googleapis.com/css?family=Source+Code+Pro&display=swap');
-
-
   h2 {
     margin: auto;
     width: 950px;
@@ -418,7 +380,6 @@
     font-family: nyt-franklin,helvetica,arial,sans-serif;
     padding-bottom: 30px
   }
-
   .center {
     margin: auto;
     width: 950px;
@@ -430,7 +391,6 @@
     text-align: justify;
     line-height: 24px
   }
-
   .ack {
     margin: auto;
     width: 950px;
@@ -440,7 +400,6 @@
     color:#333;
     font-size: 13px;
   }
-
   .row {
     font-family: nyt-franklin,helvetica,arial,sans-serif;
     margin: auto;
@@ -448,19 +407,16 @@
     width: 948px;
     font-size: 13px;
   }
-
   .caption {
     font-family: nyt-franklin,helvetica,arial,sans-serif;
     font-size: 13px;    
   }
-
   .column {
     flex: 158px;
     padding: 0px 5px 5px 0px;
     margin: 0px 5px 5px 5px;
     /*border-top: 2px solid #999*/
   }
-
   .minorTitle {
     font-family: nyt-franklin,helvetica,arial,sans-serif;
     margin: auto;
@@ -469,19 +425,15 @@
     font-size: 17px;
     color: #666;
   }
-
   .minorTitleColumn{
     flex: 60px;
     padding: 3px;
     border-bottom: 2px solid #999;
   }
-
-
   .paneltext{
     position:relative;
     height:130px;
   }
-
   .paneltitle{
     color:#777; 
     line-height: 17px; 
@@ -489,13 +441,11 @@
     font-weight: 700;
     font-family: nyt-franklin,helvetica,arial,sans-serif;
   }
-
   .paneldesc{
     color:#888; 
     text-align: left;
     font-weight: 300;
   }
-
   .slidertext{
     color:#555; 
     line-height: 7px; 
@@ -511,14 +461,12 @@
   .range {
     width: 100%;
   }
-
   .chart {
     width: 100%;
     margin: 0 auto;
     padding-top:0px;
     padding-bottom:10px;
   }
-
   .legend {
     color: #888;
     font-family: Helvetica, Arial;
@@ -529,7 +477,6 @@
     top: 4px;
     position: absolute;
   }
-
   .legendtitle {
     color:#777; 
     font-size:13px;
@@ -537,8 +484,6 @@
     font-weight: 600;
     font-family: nyt-franklin,helvetica,arial,sans-serif;
   }
-
-
   .legendtext{
     color:#888; 
     font-size:13px;
@@ -547,7 +492,6 @@
     font-family: nyt-franklin,helvetica,arial,sans-serif;
     line-height: 14px;
   }
-
   .legendtextnum{
     color:#888; 
     font-size:13px;
@@ -558,14 +502,12 @@
     left: -3px;
     position: relative;
   }
-
   .tick {
     font-family: nyt-franklin,helvetica,arial,sans-serif;
     font-size: .725em;
     font-weight: 200;
     font-size: 13px
   }
-
   td { 
     text-align: left;
     font-family: nyt-franklin,helvetica,arial,sans-serif;
@@ -574,25 +516,46 @@
     padding: 3px;
     /*font-size: 14px;*/
   }
-
   tr {
     border-collapse: collapse;
     border-spacing: 15px;
   }
 
-  .countrySelector {
+    .countrybox {
+      background-color: white;
+	opacity: 0.7;
+	padding: 5px;
+  }
+
+
+    .country {
   font-family: nyt-franklin,helvetica,arial,sans-serif;
-  color: #666;
-  width: 200px;
+      font-size: 14pt;
+      color: #666;
+      width: 250px;
   }
 
-  select { display: block; width: 500px; max-width: 100%; }
+  .population {
+	font-family: nyt-franklin,helvetica,arial,sans-serif;
+      color: #888888;
+      font-size: 10pt;
+      margin-bottom: 5pt;
+    }
 
-  select {
-    font-family: nyt-franklin,helvetica,arial,sans-serif;
-    color: #666;
+  .fatalities {
+  font-family: nyt-franklin,helvetica,arial,sans-serif;
+  color: #386cb0;
+  width: 250px;
   }
-  
+
+    .confirmed {
+  font-family: nyt-franklin,helvetica,arial,sans-serif;
+  color: #f0027f;
+	width: 250px;
+	opacity: 1;
+  }
+
+
   .eqn {
     font-family: nyt-franklin,helvetica,arial,sans-serif;
     margin: auto;
@@ -604,17 +567,13 @@
     color:#666;
     font-size: 16.5px;
   }
-
   
-
   th { font-weight: 500; text-align: left; padding-bottom: 5px; vertical-align: text-top;     border-bottom: 1px solid #DDD; }
-
   a:link { color: grey; }
   a:visited { color: grey; }
-
 </style>
 
-<h2>Epidemic Calculator</h2>
+<h2>Epidemic Calculator <div style = "color:red">Under development</div></h2>
 
 <div class="chart" style="display: flex; max-width: 1120px">
 
@@ -758,7 +717,8 @@
       <Chart bind:checked={checked}
              bind:active={active}
 	     country={country}
-	     province={province}
+             province={province}
+             countryData = {countryData}
              y = {P} 
              xmax = {Xmax} 
              total_infected = {total_infected} 
@@ -770,7 +730,9 @@
              ymax={lock ? Plock: Pmax}
              InterventionTime={InterventionTime}
              colors={colors}
-             log={!log}/>
+             log={!log}
+             showJHU={showJHU}
+             showSIM={showSIM}/>
       </div>
 
       <div id="xAxisDrag"
@@ -871,7 +833,6 @@
           </div>
       </div>
 
-
      <!------------------------------------------ -->
      <!------------------------------------------ -->
      <!------------------------------------------ -->
@@ -880,21 +841,32 @@
      <!------------------------------------------ -->
      <!------------------------------------------ -->
 
-     <!-- Country Specific Information -->
-     <div style="position:absolute; top: 100px; left: 500px; width: 300px; height: 300px;">
-       <div style="position:absolute; top: 0px; left: 0px; margin: 0px 0px 5px 4px;" class="countrySelector">
-         <select bind:value={country}>
-	  {#each countries as myCountry}
-			<option value={myCountry}>
-				{myCountry}
-			</option>
-		{/each}
-	</select>
+          <!-- Country Specific Information -->
+     <div style="position:absolute; top: 50px; left: 500px; width: 300px; height: 300px;">
+       <div style="position:absolute; top: 0px; left: 0px; margin: 0px 0px 5px 4px;" class="countrybox">
+	 <div class="country">Country: {country}</div>
+         <div class="population">Population: {format(",")(Math.round(N))}</div>
+
+	 	 <div class="confirmed">JHU - Confirmed Today:
+	 {#await confirmedToday then data}
+	   {data}
+	   {/await}
+	 </div>
+
+	    	 <div class="fatalities" style="margin-bottom: 5pt;">JHU - Fatalities Today:
+	 {#await fatalitiesToday then data}
+	   {data}
+	   {/await}
+	 </div>
+	    
+	    <div class="confirmed">Infected Prognosis: tba</div> 
+
+
+
+
+	    <div class="fatalities">Fatalities Prognosis: {format(",")(Math.round(totalDeaths))}</div> 
        </div>
      </div>
-
-
-
 
 <!-- 
       {#if xScaleTime(InterventionTime+duration) < (width - padding.right)}
@@ -916,7 +888,6 @@
             </div>
           </div>
         </div>
-
         <div style="position: absolute; width:{width+15}px; height: {height}px; position: absolute; top:120px; left:10px; pointer-events: none">
           <div style="
               opacity: 0.5;
@@ -962,7 +933,11 @@
     
     <div style="opacity:{xScaleTime(InterventionTime) >= 192? 1.0 : 0.2}">
       <div class="tick" style="color: #AAA; position:absolute; pointer-events:all; left:10px; top: 10px">
-        <Checkbox color="#CCC" bind:checked={log}/><div style="position: relative; top: 4px; left:20px">linear scale</div>
+             <Checkbox color="#CCC" bind:checked={log}/><div style="position: relative; top: 4px; left:20px">linear scale</div></div>
+      <div class="tick" style="color: #AAA; position:absolute; pointer-events:all; left:10px; top: 30px">
+             <Checkbox color="#CCC" bind:checked={showJHU}/><div style="position: relative; top: 4px; left:20px">Johns Hopkins Data</div></div>
+      <div class="tick" style="color: #AAA; position:absolute; pointer-events:all; left:10px; top: 50px">
+             <Checkbox color="#CCC" bind:checked={showSIM}/><div style="position: relative; top: 4px; left:20px">Simulation</div>
       </div>
     </div>
 
@@ -980,10 +955,10 @@
   <div class = "row">
 
     <div class="column">
-      <div class="paneltitle">Population Inputs</div>
-      <div class="paneldesc" style="height:30px">Size of population.<br></div>
-      <div class="slidertext">{format(",")(Math.round(N))}</div>
-      <input class="range" style="margin-bottom: 8px"type=range bind:value={logN} min={5} max=25 step=0.01>
+      <div class="paneltitle">Day Zero Input</div>
+	     <div class="paneldesc" style="height:30px">Start of spread in {country}.<br></div>
+      <div class="slidertext">{format(",")(dayZero)}</div>
+      <input class="range" style="margin-bottom: 8px"type=range bind:value={dayZero} min={0} max=60 step=1>
       <div class="paneldesc" style="height:29px; border-top: 1px solid #EEE; padding-top: 10px">Number of initial infections.<br></div>
       <div class="slidertext">{I0}</div>
       <input class="range" type=range bind:value={I0} min={1} max=10000 step=1>
@@ -1192,3 +1167,7 @@ The clinical dynamics in this model are an elaboration on SEIR that simulates th
     </form>
   </div>
 </div>
+
+
+
+

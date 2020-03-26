@@ -7,21 +7,16 @@
   import { csv } from 'd3-fetch';
   import { createEventDispatcher } from 'svelte';
   import { myRange} from './range.js';
-
   const dispatch = createEventDispatcher();
-
   function range(n){
     return Array(n).fill().map((_, i) => i);
   }
-
   $: showTip = function (i) {
     active_hover = i
   }
-
   function formatNumber(num) {
     return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')
   }
-
   var sum = function(arr, bools){
     var x = 0
     for (var i = 0; i < arr.length; i++) {
@@ -29,6 +24,7 @@
     }
     return x
   }
+  export let countryData;
   export let country;
   export let province;
   export let y;
@@ -43,50 +39,39 @@
   export let ymax;
   export let InterventionTime;
   export let colors; 
-  export let log = false;
-
+export let log = false;
+export let showJHU = true;
+export let showSIM = false;
   const padding = { top: 20, right: 0, bottom: 20, left: 25 };
-
   let width  = 750;
   let height = 420;
-
   $: xScale = scaleLinear()
     .domain([0, y.length])
     .range([padding.left, width - padding.right]);
-
   $: xScaleTime = scaleLinear()
     .domain([0, tmax])
     .range([padding.left, width - padding.right]);
-
   $: timeToIndex = scaleLinear()
     .domain([0, tmax])
     .range([0, y.length])
-
   $: indexToTime = scaleLinear()
     .domain([0, y.length])
     .range([0, tmax])
-
   $: timeToIndex = scaleLinear()
     .domain([0, tmax])
     .range([0, y.length])
-
   $: yScale = (log ? scaleLog(): scaleLinear())
     .domain([log ? 1: 0,  ymax/1])
     .range([height - padding.bottom, padding.top]);
-
   $: yScaleL = scaleLog()
     .domain([1,  ymax/1])
     .range([0, height - padding.bottom - padding.top]);
-
  
-
-
   $: innerWidth = width - (padding.left + padding.right);
   $: barWidth = innerWidth / y.length - 1.5;
   $: active_hover = -1
   $: lock = false
   var active_lock = 0
-
   $: active = (function () {
     if (lock){
       var i = Math.round(timeToIndex(active_lock))
@@ -105,92 +90,16 @@
 $: checkedReal = [checked[0], checked[3]] 
   // var data = [[2   , 2  ], [5   , 2  ], [18  , 4  ], [28  , 6  ], [43  , 8  ], [61  , 12 ], [95  , 16 ], [139 , 19 ], [245 , 26 ], [388 , 34 ], [593 , 43 ], [978 , 54 ], [1501, 66 ], [2336, 77 ], [2922, 92 ], [3513, 107], [4747, 124]]
 var data = [];
-
 // the real world data have only deaths, and confirmed. These correspond to elements 0, 2 and 3 in the color array
 var colorLookup = [0, 3];
-
-
-function aggregatedData(country, province) {
-    var basePath = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_"
-    var pathConfirmed = basePath.concat("confirmed_global.csv")
-    var pathDeaths = basePath.concat("deaths_global.csv")
-
-    var returnData = [[],[],[]]; // this stores all the days from github
-    var returnData2 = []; // this just stores a subset for plotting
-    var k = 0;
-    // based on this>
-
-    //console.log("Country: " + country);
-    //console.log("Province: " + province);
-    
-    return Promise.all([csv(pathDeaths), csv(pathConfirmed)]).then(function(files) {
-	files.forEach(function(file) {								
-	    var totalCases = []
-	    file.forEach(function(line) {
-		if (line["Country/Region"] == country) {
-		    //console.log(d); // this prints the entire country information for the given caseType
-		    // if no state is given take the first hit
-		    // else if a state is given make sure it equals the entry in the record.
-		    
-		    if (province.length == 0 ||  line["Province/State"] == state) {
-			//console.log(line);
-			var i = 0;
-			//console.log(d["Province/State"]);
-			for (var key in line) {
-			    if (line.hasOwnProperty(key)) {
-				if (i > 3) {
-				    returnData[k].push(  +line[key] );
-    				}
-				i++;
-			    }
-			}
-		    }
-		}
-	    })
-	    k++;
-	})
-	return returnData // this is all the data. Now we need to create the 33 item subset
-    }).then(function(returnData) {
-	var length = returnData[0].length;
-
-	var index = 0;
-	for (var i = 0; i < 33; i++) {
-	    index = Math.round(i/parseFloat(33)*length);
-	    //console.log(index);
-	    returnData2.push([returnData[0][index], returnData[1][index]]);
-	    //returnData2[1].push(returnData[1][index]);
-	    //returnData2[2].push(returnData[2][index]);
-	}
-	console.log(returnData2.length);
-
-	return returnData2;
-    }).catch(function(err) {
-	console.log(err);    //handle error
-    });
-}
-
-function dailyCases(totalCases) {
-    // calculate the daily Cases based on a list of total cases.
-    console.log("Daily New");
-    
-    var dailyNew = []
-    dailyNew.push(+ totalCases[0]);
-    for (var i = 1; i < totalCases.length; i++) {
-     	dailyNew.push(totalCases[i] - totalCases[i-1]);
-    }
-    return dailyNew
-}
 
 // for e.g., Germany set country to "Germany" and state to ""
 //var country = "United Kingdom";
 //var state = "United Kingdom";
-
 //var dataJHU = aggregatedData(country, state);
 //console.log(dataJHU);
-
 let dataJHU;
 let length;
-
 //onMount(() => {
     //dataJHU = aggregatedData(country, province);
     //length = dataJHU.then(function(data) {
@@ -198,10 +107,6 @@ let length;
 	//return data.length;
    // })
 //});
-
-
-
-
 //}//);
 	
 </script>
@@ -214,7 +119,6 @@ let length;
     font-family: nyt-franklin,arial,helvetica,sans-serif;
     font-style: normal; 
   }
-
   .chart {
     width: 100%;
     max-width: 800px;
@@ -222,72 +126,57 @@ let length;
     padding-top:30px;
     padding-bottom:10px;
   }
-
   svg {
     position: relative;
     width: 100%;
     height: 450px;
   }
-
   .tick {
     font-family: Helvetica, Arial;
     font-size: .725em;
     font-weight: 200;
   }
-
   .tick line {
     stroke: #e2e2e2;
     stroke-dasharray: 2;
   }
-
   .tick text {
     fill: #aaa;
     text-anchor: start;
   }
-
   .tick.tick-0 line {
     stroke-dasharray: 0;
   }
-
   .intervention line {
     stroke: #555;
     stroke-dasharray: 0;
     stroke-width:12.5;
   }
-
-
   .x-axis .tick text {
     text-anchor: middle;
   }
-
   .bar {
     stroke: none;
     opacity: 0.65
   }
-
   .total {
     color: #888;
     font-family: Helvetica, Arial;
     font-size: .725em;
     font-weight: 200;
   }
-
-
   a.tip span:before{
       content:'';
       display:block;
       width:0;
       height:0;
       position:absolute;
-
       border-top: 8px solid transparent;
       border-bottom: 8px solid transparent;
       border-right:8px solid black;
       left:-8px;
-
       top:7px;
   }
-
 </style>
 
 
@@ -322,9 +211,11 @@ let length;
        <!-- the day is in percent of the whole simulation -->
        <!-- real cases are deaths, recovereds, and confirmed --> 
 
-       
-       {#await aggregatedData(country, province) then data}
-       {console.log(data)}
+       {#if showJHU}
+       {#await countryData then data}
+       {console.log("Checked Real: " + checkedReal)}
+       {console.log("Checked: " + checked)}
+
        {#each range(data.length) as i}
         {#each range(2) as j}
           {#if !log}
@@ -340,6 +231,32 @@ let length;
                 style="fill:{colors[colorLookup[j]]};
                        opacity:{active == i ? 0.9: 0.6}">     
        </rect>
+       {:else}
+             <rect
+                on:mouseover={() => showTip(i)}
+                on:mouseout={() => showTip(-1)}
+                on:click={() => {lock = !lock; active_lock = indexToTime(i) }}
+                class="bar"
+                x="{xScale(i) + 2}"
+                y="{(function () { 
+                        var z = yScale( sum(data[i].slice(0,j+1), checkedReal) ); 
+                        return Math.min(isNaN(z) ? 0: z, height - padding.top)
+                      })()  
+                    }"
+                width="{barWidth}"
+                height="{(function () {
+                  var top = yScaleL( sum(data[i].slice(0,j+1),checkedReal) + 0.0001 )
+                  var btm = yScaleL( sum(data[i].slice(0,j),checkedReal) + 0.0001)
+                  var z = top - btm; 
+                  if (z + yScale( sum(data[i].slice(0,j+1), checkedReal) ) > height - padding.top) {
+                    return top
+                  } else {
+                    return Math.max(isNaN(z) ? 0 : z,0)
+                  }})()}" 
+                style="fill:{colors[colorLookup[j]]};
+                       opacity:{active == i ? 0.9: 0.6}">     
+              </rect>
+
        {/if}
        
        
@@ -347,10 +264,11 @@ let length;
        {/each}
        {console.log(data)}
        {/await}
+       {/if}
 
        
 
-       {#each myRange(33, y.length) as i}
+       {#each myRange(showSIM ? 0 : 33, y.length) as i}
         <rect
           on:mouseover={() => showTip(i)}
           on:mouseout={() => showTip(-1)}
