@@ -1,9 +1,13 @@
 # EPCALC Fork
 
+This is a fork of @gabgoh's epcalc epidemic calculator that shows country-specific up to date real world Deaths and Confirmed Cases as listed by the Johns Hopkins University Github Repository https://github.com/CSSEGISandData .
+
 *Update 2020/03/26: Reorganization of the code. A jhu.js module now loads the JHU data. For the past it is possible to plot the JHU data, the simulation, or both. Some country data are shown in the plot. For simple countries (no regions), the country can be passed to the app as a country argument, e.g. url.github.io/ . At present the logarithm of the population size should be passed as well, i.e.
 index.html?logN=15&country=Czechia
 
-The compiled App is now in a docs folder, and can be accessed at .... 
+The compiled App is now in a docs folder, and can be accessed at https://bennomeier.github.io/epcalc/index.html
+
+To get information for a specific, JHU listed country use, e.g., https://bennomeier.github.io/epcalc/index.html?country=Czechia&logN=16.18
 
 *Update 2020/03/25: Update for new JHU data format. Real-time JHU Data for Deaths and Confirmed are now shown in the plot for a hard-coded country. 
 
@@ -11,7 +15,6 @@ The compiled App is now in a docs folder, and can be accessed at ....
 
 ---
 
-This is a fork of @gabgoh's epcalc epidemic calculator.
 
 The objective of this project is to include Johns Hopkins University real-time data of the pandemic.
 
