@@ -62,12 +62,12 @@ export function aggregatedData(country, province, shiftDays) {
 
 	// it may be is better here to just send out all the days.
 	// and leave the refactoring to the Chart part of the  App
-	var numberOfEntries = Math.min(200, length);
+	//var numberOfEntries = Math.min(200, length);
 	
-	for (var i = 0; i < numberOfEntries; i++) {
-	    index = Math.round(i/parseFloat(numberOfEntries)*length);
+	for (var i = 0; i < length; i++) {
+	    //index = Math.round(i/parseFloat(numberOfEntries)*length);
 	    //console.log(index);
-	    returnData2.push([returnData[0][index], returnData[1][index]]);
+	    returnData2.push([returnData[0][i], returnData[1][i]]);
 	}
 	//console.log("returnData2: " + returnData2);
 	//console.log("length of abvoe: " + returnData2.length);
@@ -93,9 +93,22 @@ export function getFatalitiesToday(country, province, shiftDays) {
 								 });
 }
 
-
 export function getConfirmedToday(country, province, shiftDays) {
     return aggregatedData(country, province, shiftDays).then(function(data) {
 	return data.slice(-1)[0][1]
 								 });
+}
+
+export function getMaxCases(country, province, shiftDays) {
+    return aggregatedData(country, province, shiftDays).then(function(data) {
+	var caseData = data;
+	//console.log(caseData);
+	var allCategories = [];
+
+	for (var i = 0; i < caseData.length; i++) {
+	    allCategories.push(caseData[i][0] + caseData[i][1]);
+	}
+	console.log("Max all Categories: " + Math.max(...allCategories));
+	return Math.max(...allCategories)
+    });
 }

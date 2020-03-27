@@ -27,6 +27,9 @@
   export let countryData;
   export let country;
   export let province;
+export let lastDayInPlot;
+export let maxRealCases;
+
   export let y;
   export let tmax;
   export let xmax; 
@@ -38,13 +41,14 @@
   export let N;
   export let ymax;
   export let InterventionTime;
-  export let colors; 
+export let colors;
+
 export let log = false;
 export let showJHU = true;
 export let showSIM = false;
   const padding = { top: 20, right: 0, bottom: 20, left: 25 };
   let width  = 750;
-  let height = 420;
+let height = 420;
   $: xScale = scaleLinear()
     .domain([0, y.length])
     .range([padding.left, width - padding.right]);
@@ -61,7 +65,7 @@ export let showSIM = false;
     .domain([0, tmax])
     .range([0, y.length])
   $: yScale = (log ? scaleLog(): scaleLinear())
-    .domain([log ? 1: 0,  ymax/1])
+    .domain([log ? 1: 0,  ymax])
     .range([height - padding.bottom, padding.top]);
   $: yScaleL = scaleLog()
     .domain([1,  ymax/1])
@@ -87,7 +91,8 @@ export let showSIM = false;
   })()
   export let active;
   export let checked;
-$: checkedReal = [checked[0], checked[3]] 
+$: checkedReal = [checked[0], checked[3]]
+
   // var data = [[2   , 2  ], [5   , 2  ], [18  , 4  ], [28  , 6  ], [43  , 8  ], [61  , 12 ], [95  , 16 ], [139 , 19 ], [245 , 26 ], [388 , 34 ], [593 , 43 ], [978 , 54 ], [1501, 66 ], [2336, 77 ], [2922, 92 ], [3513, 107], [4747, 124]]
 var data = [];
 // the real world data have only deaths, and confirmed. These correspond to elements 0, 2 and 3 in the color array
@@ -201,8 +206,6 @@ let length;
         </g>
       {/each}
     </g>
-
-         
        
       {#await countryData then data}
        <g class='bars'>
@@ -212,24 +215,41 @@ let length;
        <!-- real cases are deaths, recovereds, and confirmed --> 
 
        {#if showJHU}
-       {console.log("Checked Real: " + checkedReal)}
-       {console.log("Checked: " + checked)}
+       //{console.log("Checked Real: " + checkedReal)}
+       //{console.log("Checked: " + checked)}
 
+       
        // in the code below, 200 should be replaced by the number of days in the chart
        // and i*2 should be replaced by i*totalDays/100
        
-       {#each range(Math.round(data.length*100.0/200)) as i}
+       {#each range(Math.round(data.length*100.0/lastDayInPlot)) as i}
+
+         <rect
+          on:mouseover={() => showTip(i)}
+          on:mouseout={() => showTip(-1)}
+          on:click={() => {lock = !lock; active_lock = indexToTime(i) }}
+          class="bar"
+          x="{xScale(i) + 2}"
+          y="{0}"
+          width="{barWidth+3}"
+          height="{height}"
+          style="fill:white; opacity: 0">     
+       </rect>
+       
         {#each range(2) as j}
           {#if !log}
-              <rect
+           {console.log("lastDayInPlot: " + lastDayInPlot)}
+
+
+             <rect
                 on:mouseover={() => showTip(i)}
                 on:mouseout={() => showTip(-1)}
                 on:click={() => {lock = !lock; active_lock = indexToTime(i) }}
                 class="bar"
                 x="{xScale(i) + 2}"
-                y="{yScale( sum(data[i*2].slice(0,j+1), checkedReal) )}"
+                y="{yScale( sum(data[Math.round(i*lastDayInPlot/100)].slice(0,j+1), checkedReal) )}"
                 width="{barWidth}"
-                height="{Math.max(height - padding.bottom - yScale(data[i*2][j]*checked[colorLookup[j]] ),0)}" 
+                height="{Math.max(height - padding.bottom - yScale(data[Math.round(i*lastDayInPlot/100)][j]*checked[colorLookup[j]] ),0)}" 
                 style="fill:{colors[colorLookup[j]]};
                        opacity:{active == i ? 0.9: 0.6}">     
        </rect>
@@ -241,16 +261,16 @@ let length;
                 class="bar"
                 x="{xScale(i) + 2}"
                 y="{(function () { 
-                        var z = yScale( sum(data[i*2].slice(0,j+1), checkedReal) ); 
+                        var z = yScale( sum(data[Math.round(i*lastDayInPlot/100)].slice(0,j+1), checkedReal) ); 
                         return Math.min(isNaN(z) ? 0: z, height - padding.top)
                       })()  
                     }"
                 width="{barWidth}"
                 height="{(function () {
-                  var top = yScaleL( sum(data[i*2].slice(0,j+1),checkedReal) + 0.0001 )
-                  var btm = yScaleL( sum(data[i*2].slice(0,j),checkedReal) + 0.0001)
+                  var top = yScaleL( sum(data[Math.round(i*lastDayInPlot/100)].slice(0,j+1),checkedReal) + 0.0001 )
+                  var btm = yScaleL( sum(data[Math.round(i*lastDayInPlot/100)].slice(0,j),checkedReal) + 0.0001)
                   var z = top - btm; 
-                  if (z + yScale( sum(data[i*2].slice(0,j+1), checkedReal) ) > height - padding.top) {
+                  if (z + yScale( sum(data[Math.round(i*lastDayInPlot/100)].slice(0,j+1), checkedReal) ) > height - padding.top) {
                     return top
                   } else {
                     return Math.max(isNaN(z) ? 0 : z,0)
@@ -269,7 +289,7 @@ let length;
 
        
 
-       {#each myRange(showSIM ? 0 : Math.round(data.length*0.5), y.length) as i}
+       {#each myRange(showSIM ? 0 : Math.round(data.length*100.0/lastDayInPlot), y.length) as i}
 
         <rect
           on:mouseover={() => showTip(i)}

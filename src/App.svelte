@@ -17,6 +17,7 @@ import {aggregatedData } from './jhu.js';
 import {getFatalitiesToday } from './jhu.js';
 import {getConfirmedToday } from './jhu.js';
 import { getDays } from './jhu.js';
+import { getMaxCases } from './jhu.js';
 
   const legendheight = 67 
   function range(n){
@@ -63,6 +64,7 @@ import { getDays } from './jhu.js';
   $: countryData      = aggregatedData(country, province, dayZero)
   $: fatalitiesToday     = getFatalitiesToday(country, province, dayZero)
   $: confirmedToday      = getConfirmedToday(country, province, dayZero)
+  $: maxRealCases            = getMaxCases(country, province, dayZero)
   $: realDataNumberOfDays = getDays(country, province, dayZero)
   $: Time_to_death     = 32
   $: logN              = Math.log(80e6)
@@ -80,7 +82,8 @@ import { getDays } from './jhu.js';
   $: InterventionAmt   = 1/3
   $: Time              = 220
   $: Xmax              = 110000
-  $: dt                = 2
+  $: dt                = 3
+  $: lastDayInPlot  = dt*100 //
   $: P_SEVERE          = 0.2
   $: duration          = 7*12*1e1
   function checkRegion() {
@@ -184,19 +187,25 @@ import { getDays } from './jhu.js';
             "Iters":Iters,
             "dIters": f}
   }
+
+function setInterventionAmt(value) {
+    InterventionAmt = value;
+    console.log("InterventionAmt: " + value);
+}
+
   function max(P, checked) {
     return P.reduce((max, b) => Math.max(max, sum(b, checked) ), sum(P[0], checked) )
   }
   $: Sol            = get_solution(dt, N, I0, R0, D_incbation, D_infectious, D_recovery_mild, D_hospital_lag, D_recovery_severe, D_death, P_SEVERE, CFR, InterventionTime, InterventionAmt, duration)
   $: P              = Sol["P"].slice(0,100)  // only plot first 100 elements of the run. 
   $: timestep       = dt
-$: tmax           = dt*100
+  $: tmax           = dt*100
   $: deaths         = Sol["deaths"]
   $: total          = Sol["total"]
   $: total_infected = Sol["total_infected"].slice(0,100)
   $: Iters          = Sol["Iters"]
   $: dIters         = Sol["dIters"]
-  $: Pmax           = max(P, checked)
+    $: Pmax           = max(P, checked) 
 $: lock           = false
 $: totalDeaths = P[99][0]
   var colors = [ "#386cb0", "#8da0cb", "#4daf4a", "#f0027f", "#fdc086"]
@@ -319,7 +328,8 @@ $: totalDeaths = P[99][0]
     .range([0, tmax])
   window.addEventListener('mouseup', unlock_yaxis);
   $: checked = [true, true, false, true, true]
-  $: checkedReal = [checked[0], checked[2], checked[3]] // whehter to show deaths, recovered and confirmed of real world cases
+    $: checkedReal = [checked[0], checked[2], checked[3]] // whehter to show deaths, recovered and confirmed of real world cases
+
   $: active  = 0
   $: active_ = active >= 0 ? active : Iters.length - 1
   var Tinc_s = "\\color{#CCC}{T^{-1}_{\\text{inc}}} "
@@ -559,7 +569,26 @@ $: showSIM = false
   color: #f0027f;
 	width: 250px;
 	opacity: 1;
-  }
+    }
+
+button.strategy{
+ display:inline-block;
+ padding:0.35em 1.2em;
+     border:0.1em solid #FF;
+ margin:0 0.3em 0.3em 0;
+ box-sizing: border-box;
+ text-decoration:none;
+     font-family: nyt-franklin,helvetica,arial,sans-serif;
+ font-weight:300;
+ color:#FFFFFF;
+ text-align:center;
+     transition: all 0.2s;
+      display:block;
+      margin:0.4em auto;
+    height: 25px;
+}
+
+
 
 
   .eqn {
@@ -719,12 +748,18 @@ $: showSIM = false
 
   <div style="flex: 0 0 890px; width:890px; height: {height+128}px; position:relative;">
 
+
+{#await maxRealCases then mydata}
+
+
     <div style="position:relative; top:60px; left: 10px">
-      <Chart bind:checked={checked}
+    <Chart bind:checked={checked}
              bind:active={active}
 	     country={country}
              province={province}
              countryData = {countryData}
+             lastDayInPlot = {lastDayInPlot}
+             maxRealCases = {maxRealCases}
              y = {P} 
              xmax = {Xmax} 
              total_infected = {total_infected} 
@@ -733,13 +768,16 @@ $: showSIM = false
              timestep={timestep}
              tmax={tmax}
              N={N}
-             ymax={lock ? Plock: Pmax}
+ymax = {Math.max(Pmax, mydata)}
              InterventionTime={InterventionTime}
              colors={colors}
              log={!log}
              showJHU={showJHU}
              showSIM={showSIM}/>
-      </div>
+    </div>
+
+{/await}
+
 
       <div id="xAxisDrag"
            style="pointer-events: all;
@@ -864,13 +902,21 @@ $: showSIM = false
 	   {data}
 	   {/await}
 	 </div>
-	    
-	    <div class="confirmed">Infected Prognosis: tba</div> 
 
+   	 <div class="country" style="margin-top:20px;margin-bottom:10px;">Strategy</div>
+	    <div style="width:130px;">
+	    <div class="row" style="width:130px;">
+	    <div class="column"><div><button class="strategy" on:click={setInterventionAmt(1)}>Observe</button></div></div>
+	    <div class="column"><div><button class="strategy" on:click={setInterventionAmt(1/R0)>Mitigate</button></div></div>
+	    <div class="column"><div><button class="strategy">Suppress</button></div></div>
+	   </div>
+	    </div>
 
+   	    <div class="country" style="margin-top:20px;margin-bottom:10px;">Outcome (Prognosis)</div>
 
+	    <div class="confirmed">Total Infected: {format(",")(Math.round(Math.max(...total_infected)))}</div> 
 
-	    <div class="fatalities">Fatalities Prognosis: {format(",")(Math.round(totalDeaths))}</div> 
+	    <div class="fatalities">Fatalities: {format(",")(Math.round(totalDeaths))}</div> 
        </div>
      </div>
 
@@ -936,15 +982,23 @@ $: showSIM = false
               </div>
             {/each}
       </div>
-    
-    <div style="opacity:{xScaleTime(InterventionTime) >= 192? 1.0 : 0.2}">
-      <div class="tick" style="color: #AAA; position:absolute; pointer-events:all; left:10px; top: 10px">
-             <Checkbox color="#CCC" bind:checked={log}/><div style="position: relative; top: 4px; left:20px">linear scale</div></div>
-      <div class="tick" style="color: #AAA; position:absolute; pointer-events:all; left:10px; top: 30px">
-             <Checkbox color="#CCC" bind:checked={showJHU}/><div style="position: relative; top: 4px; left:20px">Johns Hopkins Data</div></div>
-      <div class="tick" style="color: #AAA; position:absolute; pointer-events:all; left:10px; top: 50px">
-             <Checkbox color="#CCC" bind:checked={showSIM}/><div style="position: relative; top: 4px; left:20px">Simulation</div>
-      </div>
+
+         <div style="position:absolute; top: 80px; left: 20px; margin: 0px 0px 5px 4px;" class="countrybox">
+	  <div class="tick" style="color: #555; pointer-events:all; position:relative; top: 0px;">
+             <Checkbox color="#AAA" bind:checked={log}/><div style="position:relative; left: 20px; top: 5px;">linear scale</div></div>
+	     </div>
+
+
+	              <div style="position:absolute; top:-20px; left: -250px; margin: 0px 0px 5px 4px;" class="countrybox">
+	  <div class="tick" style="color: #555; pointer-events:all; position:absolute; top: 5px;">
+             <Checkbox color="#AAA" bind:checked={showJHU}/>
+	     <div style="position:relative; left: 20px; top: 5px; width:140px;">
+	     <!--	       <div><img src="./jhuLogo.png" style="height:30px;"></div>-->
+             Johns Hopkins Data
+	     </div>
+	     </div>
+          <div class="tick" style="color: #555; pointer-events:all; position:absolute; top: 5px; left: 170px;">
+             <Checkbox color="#AAA" bind:checked={showSIM}/><div style="position:relative; left: 20px; top: 5px;">Simulation</div></div>
     </div>
 
    </div>
