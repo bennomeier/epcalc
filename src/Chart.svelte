@@ -204,7 +204,7 @@ let length;
 
          
        
-       
+      {#await countryData then data}
        <g class='bars'>
        <!-- Insertion to show real world data -->
        <!-- y starts from the top -->
@@ -212,11 +212,13 @@ let length;
        <!-- real cases are deaths, recovereds, and confirmed --> 
 
        {#if showJHU}
-       {#await countryData then data}
        {console.log("Checked Real: " + checkedReal)}
        {console.log("Checked: " + checked)}
 
-       {#each range(data.length) as i}
+       // in the code below, 200 should be replaced by the number of days in the chart
+       // and i*2 should be replaced by i*totalDays/100
+       
+       {#each range(Math.round(data.length*100.0/200)) as i}
         {#each range(2) as j}
           {#if !log}
               <rect
@@ -225,9 +227,9 @@ let length;
                 on:click={() => {lock = !lock; active_lock = indexToTime(i) }}
                 class="bar"
                 x="{xScale(i) + 2}"
-                y="{yScale( sum(data[i].slice(0,j+1), checkedReal) )}"
+                y="{yScale( sum(data[i*2].slice(0,j+1), checkedReal) )}"
                 width="{barWidth}"
-                height="{Math.max(height - padding.bottom - yScale(data[i][j]*checked[colorLookup[j]] ),0)}" 
+                height="{Math.max(height - padding.bottom - yScale(data[i*2][j]*checked[colorLookup[j]] ),0)}" 
                 style="fill:{colors[colorLookup[j]]};
                        opacity:{active == i ? 0.9: 0.6}">     
        </rect>
@@ -239,16 +241,16 @@ let length;
                 class="bar"
                 x="{xScale(i) + 2}"
                 y="{(function () { 
-                        var z = yScale( sum(data[i].slice(0,j+1), checkedReal) ); 
+                        var z = yScale( sum(data[i*2].slice(0,j+1), checkedReal) ); 
                         return Math.min(isNaN(z) ? 0: z, height - padding.top)
                       })()  
                     }"
                 width="{barWidth}"
                 height="{(function () {
-                  var top = yScaleL( sum(data[i].slice(0,j+1),checkedReal) + 0.0001 )
-                  var btm = yScaleL( sum(data[i].slice(0,j),checkedReal) + 0.0001)
+                  var top = yScaleL( sum(data[i*2].slice(0,j+1),checkedReal) + 0.0001 )
+                  var btm = yScaleL( sum(data[i*2].slice(0,j),checkedReal) + 0.0001)
                   var z = top - btm; 
-                  if (z + yScale( sum(data[i].slice(0,j+1), checkedReal) ) > height - padding.top) {
+                  if (z + yScale( sum(data[i*2].slice(0,j+1), checkedReal) ) > height - padding.top) {
                     return top
                   } else {
                     return Math.max(isNaN(z) ? 0 : z,0)
@@ -263,12 +265,12 @@ let length;
        {/each}
        {/each}
        {console.log(data)}
-       {/await}
        {/if}
 
        
 
-       {#each myRange(showSIM ? 0 : 33, y.length) as i}
+       {#each myRange(showSIM ? 0 : Math.round(data.length*0.5), y.length) as i}
+
         <rect
           on:mouseover={() => showTip(i)}
           on:mouseout={() => showTip(-1)}
@@ -324,7 +326,10 @@ let length;
         {/each}
 
       {/each}
+  
+
     </g>
+            {/await}
 
 <!-- height="{Math.max(height - padding.bottom - yScale(y[i][j]*checked[j] ),0)}" -->
 

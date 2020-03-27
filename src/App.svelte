@@ -16,6 +16,7 @@
 import {aggregatedData } from './jhu.js';
 import {getFatalitiesToday } from './jhu.js';
 import {getConfirmedToday } from './jhu.js';
+import { getDays } from './jhu.js';
 
   const legendheight = 67 
   function range(n){
@@ -55,12 +56,14 @@ import {getConfirmedToday } from './jhu.js';
     return r;
   }
   const countries = ['Germany', 'United Kingdom', 'France'];
-  $: dayZero = 20									  
-  $: country           = "US"
+							  
+  $: country           = "Czechia"
   $: province          = ""
-  $: countryData    = aggregatedData(country, province)
-$: fatalitiesToday     = getFatalitiesToday(country, province)
-$: confirmedToday      = getConfirmedToday(country, province)
+  $: dayZero        = 45
+  $: countryData      = aggregatedData(country, province, dayZero)
+  $: fatalitiesToday     = getFatalitiesToday(country, province, dayZero)
+  $: confirmedToday      = getConfirmedToday(country, province, dayZero)
+  $: realDataNumberOfDays = getDays(country, province, dayZero)
   $: Time_to_death     = 32
   $: logN              = Math.log(80e6)
   $: N                 = Math.exp(logN)
@@ -85,10 +88,12 @@ $: confirmedToday      = getConfirmedToday(country, province)
     console.log(country);
   }
 
+
 									  
   $: state = location.protocol + '//' + location.host + location.pathname + "?" + queryString.stringify({"Time_to_death":Time_to_death,
 													 "logN":logN,
 													 "country":country,
+													 "dayZero":dayZero,
                "I0":I0,
                "R0":R0,
                "D_incbation":D_incbation,
@@ -185,7 +190,7 @@ $: confirmedToday      = getConfirmedToday(country, province)
   $: Sol            = get_solution(dt, N, I0, R0, D_incbation, D_infectious, D_recovery_mild, D_hospital_lag, D_recovery_severe, D_death, P_SEVERE, CFR, InterventionTime, InterventionAmt, duration)
   $: P              = Sol["P"].slice(0,100)  // only plot first 100 elements of the run. 
   $: timestep       = dt
-  $: tmax           = dt*100
+$: tmax           = dt*100
   $: deaths         = Sol["deaths"]
   $: total          = Sol["total"]
   $: total_infected = Sol["total_infected"].slice(0,100)
@@ -278,7 +283,8 @@ $: totalDeaths = P[99][0]
     if (typeof window !== 'undefined') {
       parsed = queryString.parse(window.location.search)
 	if (!(parsed.logN === undefined)) {logN = parsed.logN}
-	 if (!(parsed.country === undefined)) {country = parsed.country}
+	if (!(parsed.country === undefined)) {country = parsed.country}
+	if (!(parsed.dayZero === undefined)) {dayZero = parseInt(parsed.dayZero)}
       if (!(parsed.I0 === undefined)) {I0 = parseFloat(parsed.I0)}
       if (!(parsed.R0 === undefined)) {R0 = parseFloat(parsed.R0)}
       if (!(parsed.D_incbation === undefined)) {D_incbation = parseFloat(parsed.D_incbation)}

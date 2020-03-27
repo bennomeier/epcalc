@@ -2,18 +2,32 @@
 
 This is a fork of @gabgoh's epcalc epidemic calculator that shows country-specific up to date real world Deaths and Confirmed Cases as listed by the Johns Hopkins University Github Repository https://github.com/CSSEGISandData .
 
-*Update 2020/03/26: Reorganization of the code. A jhu.js module now loads the JHU data. For the past it is possible to plot the JHU data, the simulation, or both. Some country data are shown in the plot. For simple countries (no regions), the country can be passed to the app as a country argument, e.g. url.github.io/ . At present the logarithm of the population size should be passed as well, i.e.
-index.html?logN=15&country=Czechia
+*Update 2020/03/27 - 1: Time Shift for Countries*
+
+For simple countries (regions are not supported yet), the country can be passed to the app as a country argument.
+
+At present the logarithm of the population size should be passed as well.
+
+dayZero is a further optional argument that corresponds to the delay between the beginning of JHU data (January 22nd, 2020) and the effective beginning of the outbreak in the specified country.
 
 The compiled App can be accessed at https://bennomeier.github.io/epcalc/index.html
 
-To get information for a specific JHU listed country use, e.g., https://bennomeier.github.io/epcalc/index.html?country=Czechia&logN=16.18
+To get information for a specific JHU listed country use, e.g.,
 
-or https://bennomeier.github.io/epcalc/index.html?country=US&logN=19.6
+https://bennomeier.github.io/epcalc/index.html?country=US&logN=19.6&dayZero=28
+
+https://bennomeier.github.io/epcalc/index.html?country=Brazil&logN=19.15&dayZero=28
+
+https://bennomeier.github.io/epcalc/index.html?country=Germany&logN=18.231&dayZero=29
+
+https://bennomeier.github.io/epcalc/index.html?country=Czechia&logN=16.18&dayZero=37
+
 
 The next update will be a country-specific timeshift for the imported data.
 
-*Update 2020/03/25: Update for new JHU data format. Real-time JHU Data for Deaths and Confirmed are now shown in the plot for a hard-coded country. 
+* Update 2020/03/26: Reorganization of the code. A jhu.js module now loads the JHU data. For the past it is possible to plot the JHU data, the simulation, or both. *
+
+*Update 2020/03/25: Update for new JHU data format. Real-time JHU Data for Deaths and Confirmed are now shown in the plot for a hard-coded country. *
 
 *Update 2020/03/24: Asynchronous import of the github data using d3-fetch is now implemented, and work has begun on the svelte code that draws the data.*
 
