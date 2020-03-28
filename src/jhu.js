@@ -36,7 +36,7 @@ function getData(country, province, shiftDays) {
 		    // if no state is given take the first hit
 		    // else if a state is given make sure it equals the entry in the record.
 		    
-		    if (line["Province/State"].length == 0 && province.length == 0 ||  line["Province/State"] == province) {
+		    if (line["Province/State"].length == 0 && (province.length == 0 || province == "All") ||  line["Province/State"] == province) {
 			//console.log(line);
 			var i = 0;
 			days = 0;
@@ -164,7 +164,7 @@ export function getDateFromDayZero(dayZero) {
 }
 
 export function getCountryParameters(country, province, parameter) {
-    return countryParameters[country][province][parameter] 
+    return countryParameters[country][province ? province : "All"][parameter] 
 }
 
 export function checkCountryListed(country, province) {

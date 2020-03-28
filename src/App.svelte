@@ -62,7 +62,7 @@ import { checkCountryListed } from './jhu.js';
   const countries = ['Germany', 'United Kingdom', 'France'];
 							  
   $: country           = "US"
-  $: province          = "All"
+  $: province          = ""
   $: dayZero        = 45
   $: countryData      = aggregatedData(country, province, dayZero)
   $: fatalitiesToday     = getFatalitiesToday(country, province, dayZero)
