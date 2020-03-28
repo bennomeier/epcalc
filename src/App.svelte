@@ -18,6 +18,9 @@ import {getFatalitiesToday } from './jhu.js';
 import {getConfirmedToday } from './jhu.js';
 import { getDays } from './jhu.js';
 import { getMaxCases } from './jhu.js';
+import { getCountryParameters } from './jhu.js';
+import { getDateFromDayZero } from './jhu.js';
+import { checkCountryListed } from './jhu.js';
 
   const legendheight = 67 
   function range(n){
@@ -58,8 +61,8 @@ import { getMaxCases } from './jhu.js';
   }
   const countries = ['Germany', 'United Kingdom', 'France'];
 							  
-  $: country           = "Czechia"
-  $: province          = ""
+  $: country           = "US"
+  $: province          = "All"
   $: dayZero        = 45
   $: countryData      = aggregatedData(country, province, dayZero)
   $: fatalitiesToday     = getFatalitiesToday(country, province, dayZero)
@@ -79,7 +82,7 @@ import { getMaxCases } from './jhu.js';
   $: D_death           = Time_to_death - D_infectious 
   $: CFR               = 0.02  
   $: InterventionTime  = 66  
-  $: InterventionAmt   = 1/3
+  $: InterventionAmt   = 1
   $: Time              = 220
   $: Xmax              = 110000
   $: dt                = 3
@@ -290,7 +293,20 @@ $: totalDeaths = P[99][0]
     // var drag_callback_intervention_end = drag_intervention_end()
     // drag_callback_intervention_end(selectAll("#dottedline2"))
     if (typeof window !== 'undefined') {
-      parsed = queryString.parse(window.location.search)
+	parsed = queryString.parse(window.location.search)
+	if (!(parsed.country === undefined)) {country = parsed.country}
+	if (!(parsed.province === undefined)) {province = parsed.province}
+	
+
+	if (checkCountryListed(country,province)) {
+		// now set values to country values from dataBase
+	    logN = getCountryParameters(country, province, "logN")
+	    dayZero = getCountryParameters(country, province, "dayZero")
+	    R0 = getCountryParameters(country, province, "R0")
+	    InterventionTime = getCountryParameters(country, province, "InterventionTime")
+	}
+
+	
 	if (!(parsed.logN === undefined)) {logN = parsed.logN}
 	if (!(parsed.country === undefined)) {country = parsed.country}
 	if (!(parsed.dayZero === undefined)) {dayZero = parseInt(parsed.dayZero)}
@@ -327,7 +343,7 @@ $: totalDeaths = P[99][0]
     .domain([0, P.length])
     .range([0, tmax])
   window.addEventListener('mouseup', unlock_yaxis);
-  $: checked = [true, true, false, true, true]
+  $: checked = [true, false, false, true, false]
     $: checkedReal = [checked[0], checked[2], checked[3]] // whehter to show deaths, recovered and confirmed of real world cases
 
   $: active  = 0
@@ -376,7 +392,7 @@ $: totalDeaths = P[99][0]
     return milestones
   }
   $: milestones = get_milestones(P)
-$: log = true
+$: log = false
 $: showJHU = true
 $: showSIM = false
 </script>
@@ -571,23 +587,30 @@ $: showSIM = false
 	opacity: 1;
     }
 
+       
 button.strategy{
  display:inline-block;
  padding:0.35em 1.2em;
-     border:0.1em solid #FF;
- margin:0 0.3em 0.3em 0;
+ border:0.15em solid #aaa;
+ margin-right: 5px;
  box-sizing: border-box;
  text-decoration:none;
-     font-family: nyt-franklin,helvetica,arial,sans-serif;
+ font-family: nyt-franklin,helvetica,arial,sans-serif;
+ font-size: 12pt;
  font-weight:300;
- color:#FFFFFF;
+     color:#444;
  text-align:center;
      transition: all 0.2s;
       display:block;
       margin:0.4em auto;
+    border-radius:2px;
     height: 25px;
+    width: 85px;
 }
 
+button.strategy:hover{
+    background-color:#bbb;
+}
 
 
 
@@ -888,7 +911,8 @@ ymax = {Math.max(Pmax, mydata)}
           <!-- Country Specific Information -->
      <div style="position:absolute; top: 50px; left: 500px; width: 300px; height: 300px;">
        <div style="position:absolute; top: 0px; left: 0px; margin: 0px 0px 5px 4px;" class="countrybox">
-	 <div class="country">Country: {country}</div>
+	 <div class="country">
+	 {#if checkCountryListed(country, province)}<img src="./svg/{getCountryParameters(country, province, "flag")}.svg" height="20" alt="Flag" style="margin-bottom: -3px;border:1px solid #ccc"> {/if}{country}</div>
          <div class="population">Population: {format(",")(Math.round(N))}</div>
 
 	 	 <div class="confirmed">JHU - Confirmed Today:
@@ -904,13 +928,12 @@ ymax = {Math.max(Pmax, mydata)}
 	 </div>
 
    	 <div class="country" style="margin-top:20px;margin-bottom:10px;">Strategy</div>
-	    <div style="width:130px;">
-	    <div class="row" style="width:130px;">
-	    <div class="column"><div><button class="strategy" on:click={setInterventionAmt(1)}>Observe</button></div></div>
-	    <div class="column"><div><button class="strategy" on:click={setInterventionAmt(1/R0)>Mitigate</button></div></div>
-	    <div class="column"><div><button class="strategy">Suppress</button></div></div>
+	    <div style="width:100px;height:30px;">
+	    <div style="position:relative;left:0px;top:0px;"><button class="strategy" on:click={() => setInterventionAmt(1)}>Observe</button></div>
+	    <div style="position:relative;left:90px;top:-25px;"><button class="strategy" on:click={() => setInterventionAmt(1/R0)}>Mitigate</button></div>
+	    <div style="position:relative;left:180px;top:-50px;"><button class="strategy" on:click={() => setInterventionAmt(1/R0*0.8)}>Suppress</button></div>
 	   </div>
-	    </div>
+	    
 
    	    <div class="country" style="margin-top:20px;margin-bottom:10px;">Outcome (Prognosis)</div>
 
@@ -966,7 +989,7 @@ ymax = {Math.max(Pmax, mydata)}
         </div>
       {/if} -->
 
-
+<!-- DEACTIVATE MILESTONES FOR THE TIME BEING --><!--
       <div style="pointer-events: none;
                   position: absolute;
                   top:{height+84}px;
@@ -981,7 +1004,8 @@ ymax = {Math.max(Pmax, mydata)}
                   <div class="tick" style="position: relative; left: 0px; top: 35px; max-width: 130px; color: #BBB; background-color: white; padding-left: 4px; padding-right: 4px">{@html milestone[1]}</div>
               </div>
             {/each}
-      </div>
+      </div> -->
+	     <!-- END OF MILESTONES -->
 
          <div style="position:absolute; top: 80px; left: 20px; margin: 0px 0px 5px 4px;" class="countrybox">
 	  <div class="tick" style="color: #555; pointer-events:all; position:relative; top: 0px;">
@@ -1015,9 +1039,9 @@ ymax = {Math.max(Pmax, mydata)}
   <div class = "row">
 
     <div class="column">
-      <div class="paneltitle">Day Zero Input</div>
+      <div class="paneltitle">Day Zero</div>
 	     <div class="paneldesc" style="height:30px">Start of spread in {country}.<br></div>
-      <div class="slidertext">{format(",")(dayZero)}</div>
+	     <div class="slidertext">{getDateFromDayZero(dayZero)}</div>
       <input class="range" style="margin-bottom: 8px"type=range bind:value={dayZero} min={0} max=60 step=1>
       <div class="paneldesc" style="height:29px; border-top: 1px solid #EEE; padding-top: 10px">Number of initial infections.<br></div>
       <div class="slidertext">{I0}</div>

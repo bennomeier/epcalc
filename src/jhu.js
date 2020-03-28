@@ -23,12 +23,20 @@ function getData(country, province, shiftDays) {
 	files.forEach(function(file) {								
 	    var totalCases = []
 	    file.forEach(function(line) {
+		
+
+		//if (province.length == 0) {
+                //    if (country == "United Kingdom") {
+		//	province = "United Kngdom";
+		//    }
+                //}
+		
 		if (line["Country/Region"] == country) {
 		    //console.log(d); // this prints the entire country information for the given caseType
 		    // if no state is given take the first hit
 		    // else if a state is given make sure it equals the entry in the record.
 		    
-		    if (province.length == 0 ||  line["Province/State"] == province) {
+		    if (line["Province/State"].length == 0 && province.length == 0 ||  line["Province/State"] == province) {
 			//console.log(line);
 			var i = 0;
 			days = 0;
@@ -111,4 +119,54 @@ export function getMaxCases(country, province, shiftDays) {
 	console.log("Max all Categories: " + Math.max(...allCategories));
 	return Math.max(...allCategories)
     });
+}
+
+
+function createDictionary(logN, dayZero, R0, flag) {
+
+    //var n = Date.now();
+    var now = new Date();
+    //console.log("Full Year: " + now.getFullYear());
+    var start = new Date(2020, 0, 22); // jhu data start on 2020, January, 22
+    var diff = (now - start) + ((start.getTimezoneOffset() - now.getTimezoneOffset()) * 60 * 1000);
+    var oneDay = 1000 * 60 * 60 * 24;
+    var day = Math.floor(diff / oneDay);
+    console.log('Day of year: ' + day);
+    var InterventionTime = day - dayZero -1;
+
+    
+    // how many days have passed between today and day Zero of the jhu dataset?
+    return {"logN" : logN, "dayZero": dayZero, "R0": R0, "InterventionTime": InterventionTime, "flag": flag}
+}
+
+var countryParameters = {}
+countryParameters["Germany"] = {"All" : createDictionary(18.23, 20, 4.6, "de")};
+countryParameters["Czechia"] = {"All" : createDictionary(16.18, 29, 3.7, "cz")};
+countryParameters["Brazil"] = {"All" : createDictionary(19.15, 28, 5, "br")};
+countryParameters["US"] = {"All" : createDictionary(19.6, 18, 4.88, "us")};
+countryParameters["Iran"] = {"All" : createDictionary(18.21, 18, 5, "ir")};
+countryParameters["Italy"] = {"All" : createDictionary(17.917, 0, 4, "it")};
+countryParameters["United Kingdom"] = {"All" : createDictionary(18.01, 20, 5, "gb")};
+countryParameters["France"] = {"All" : createDictionary(18.018, 20, 5, "fr")};
+countryParameters["China"] = {"Hubei" : createDictionary(17.884, 0, 3, "cn")};
+
+
+//countryParameters["US"] = {"All" : createDictionary(19.6, 28, 5)};
+
+export function getDateFromDayZero(dayZero) {
+    var start = Date(2020, 0, 22); // jhu data start on 2020, January, 22
+
+    var outbreak = new Date(2020, 0, 22); // initializes the outbreak to today. 
+    outbreak.setDate(outbreak.getDate() + dayZero);
+
+    console.log("Outbreak: " + outbreak)
+    return outbreak.toLocaleDateString()
+}
+
+export function getCountryParameters(country, province, parameter) {
+    return countryParameters[country][province][parameter] 
+}
+
+export function checkCountryListed(country, province) {
+    return country in countryParameters
 }
