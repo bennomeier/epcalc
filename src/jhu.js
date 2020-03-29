@@ -87,7 +87,7 @@ export function aggregatedData(country, province, shiftDays) {
 
 export function getDays(country, province, shiftDays) {
     return getData(country, province, shiftDays).then(function(data) {
-	console.log("Days: " + data[1]);
+	//console.log("Days: " + data[1]);
 	return data[1]
     });
 }
@@ -116,7 +116,7 @@ export function getMaxCases(country, province, shiftDays) {
 	for (var i = 0; i < caseData.length; i++) {
 	    allCategories.push(caseData[i][0] + caseData[i][1]);
 	}
-	console.log("Max all Categories: " + Math.max(...allCategories));
+	//console.log("Max all Categories: " + Math.max(...allCategories));
 	return Math.max(...allCategories)
     });
 }
@@ -131,7 +131,7 @@ function createDictionary(logN, dayZero, R0, flag) {
     var diff = (now - start) + ((start.getTimezoneOffset() - now.getTimezoneOffset()) * 60 * 1000);
     var oneDay = 1000 * 60 * 60 * 24;
     var day = Math.floor(diff / oneDay);
-    console.log('Day of year: ' + day);
+    //console.log('Day of year: ' + day);
     var InterventionTime = day - dayZero -1;
 
     
@@ -158,8 +158,6 @@ export function getDateFromDayZero(dayZero) {
 
     var outbreak = new Date(2020, 0, 22); // initializes the outbreak to today. 
     outbreak.setDate(outbreak.getDate() + dayZero);
-
-    console.log("Outbreak: " + outbreak)
     return outbreak.toLocaleDateString()
 }
 

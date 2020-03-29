@@ -42,7 +42,7 @@ export let maxRealCases;
   export let ymax;
   export let InterventionTime;
 export let colors;
-
+export let colorsJHU;
 export let log = false;
 export let showJHU = true;
 export let showSIM = false;
@@ -250,7 +250,7 @@ let length;
                 y="{yScale( sum(data[Math.round(i*lastDayInPlot/100)].slice(0,j+1), checkedReal) )}"
                 width="{barWidth}"
                 height="{Math.max(height - padding.bottom - yScale(data[Math.round(i*lastDayInPlot/100)][j]*checked[colorLookup[j]] ),0)}" 
-                style="fill:{colors[colorLookup[j]]};
+                style="fill:{colorsJHU[colorLookup[j]]};
                        opacity:{active == i ? 0.9: 0.6}">     
        </rect>
        {:else}
@@ -275,7 +275,7 @@ let length;
                   } else {
                     return Math.max(isNaN(z) ? 0 : z,0)
                   }})()}" 
-                style="fill:{colors[colorLookup[j]]};
+                style="fill:{colorsJHU[colorLookup[j]]};
                        opacity:{active == i ? 0.9: 0.6}">     
               </rect>
 

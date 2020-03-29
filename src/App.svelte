@@ -211,7 +211,13 @@ function setInterventionAmt(value) {
     $: Pmax           = max(P, checked) 
 $: lock           = false
 $: totalDeaths = P[99][0]
-  var colors = [ "#386cb0", "#8da0cb", "#4daf4a", "#f0027f", "#fdc086"]
+  // use the original colors for the JHU data
+  var colorsJHU = [ "#386cb0", "#8da0cb", "#4daf4a", "#f0027f", "#fdc086"]
+
+  // for the simulated data use the same colors, but with half the saturation for infected / deaths
+  var colors = [ "#748eb0", "#8da0cb", "#4daf4a", "#f078b8", "#fdc086"]
+
+
   var Plock = 1
   var drag_y = function (){
     var dragstarty = 0
@@ -631,7 +637,7 @@ button.strategy:hover{
   a:visited { color: grey; }
 </style>
 
-<h2>Epidemic Calculator <div style = "color:red">Under development</div></h2>
+<h2>Epidemic Calculator</h2>
 
 <div class="chart" style="display: flex; max-width: 1120px">
 
@@ -791,9 +797,10 @@ button.strategy:hover{
              timestep={timestep}
              tmax={tmax}
              N={N}
-ymax = {Math.max(Pmax, mydata)}
+             ymax = {Math.max(Pmax, mydata)}
              InterventionTime={InterventionTime}
              colors={colors}
+             colorsJHU = {colorsJHU}
              log={!log}
              showJHU={showJHU}
              showSIM={showSIM}/>
@@ -1014,14 +1021,13 @@ ymax = {Math.max(Pmax, mydata)}
 
 
 	              <div style="position:absolute; top:-20px; left: -250px; margin: 0px 0px 5px 4px;" class="countrybox">
-	  <div class="tick" style="color: #555; pointer-events:all; position:absolute; top: 5px;">
+	  <div class="tick" style="color: #555; pointer-events:all; position:absolute; top: 0px;">
              <Checkbox color="#AAA" bind:checked={showJHU}/>
 	     <div style="position:relative; left: 20px; top: 5px; width:140px;">
-	     <!--	       <div><img src="./jhuLogo.png" style="height:30px;"></div>-->
              Johns Hopkins Data
 	     </div>
 	     </div>
-          <div class="tick" style="color: #555; pointer-events:all; position:absolute; top: 5px; left: 170px;">
+          <div class="tick" style="color: #555; pointer-events:all; position:absolute; top: 0px; left: 170px;">
              <Checkbox color="#AAA" bind:checked={showSIM}/><div style="position:relative; left: 20px; top: 5px;">Simulation</div></div>
     </div>
 
@@ -1104,9 +1110,26 @@ ymax = {Math.max(Pmax, mydata)}
 
 <div style="position: relative; height: 12px"></div>
 
-<p class = "center">
-At the time of writing, the coronavirus disease of 2019 remains a global health crisis of grave and uncertain magnitude. To the non-expert (such as myself), contextualizing the numbers, forecasts and epidemiological parameters described in the media and literature can be challenging. I created this calculator as an attempt to address this gap in understanding.
-</p>
+<p class = "center"><b>What is this?</b><br>This is a modification of Gabriel Goh's epidemic calculator (available <a href="http://gabgoh.github.io/COVID/index.html">here</a>), that complements the epidemic calculation with a graph of  confirmed cases and deaths for a specified country, based on the Johns Hopkins University repository. The app lets you explore different strategies to respond. See this article for further information: <a href="https://medium.com/@tomaspueyo/coronavirus-the-hammer-and-the-dance-be9337092b56">Tomas Pueyo - Coronavirus: The Hammer and the Dance</a></p>
+
+<p class = "center"><b>Response Strategies</b><br>While most countries have realized that simply observing the disease is not a good strategy, a debate is on whether it is better to mitigate or suppress the outbreak.</p>
+
+<p class = "center">A <italic>mitigaton</italic> strategy seeks to bring the growth rate {@html math_inline("R_{0}")} close to 1, so that the burden on the health care system can be managed. The goal of such a strategy is to achieve what is called herd immunity. Such a strategy implies that restrictions such as social distancing have to be in place for a long time since the number of new cases per day must be kept manageable. Moreover such a strategy gives the virus substantial opportunity to evolve.</p>
+
+<p class="center">A <italic>suppresion</italic> strategy on the other hand seeks to achieve a growth rate {@html math_inline("R_{0}")} smaller than 1 until the number of new cases is near zero. At this stage sufficient testing and tracking capabilities may enable a targeted response to small outbreaks, and a lift of measures such as social distancing.</p>
+
+<p class="center">You can explore the different strategies using the buttons for "Observe", "Mitigate" and "Suppress". You can change the duration of the simulation by click and drag of an axis label.</p>
+
+<p class="center"><b>Limitations</b><br>
+Note that it is not possible to accurately predict the outcome figures for "Total infected" and "Fatalities" -  these have to be interpreted as order of magnitude estimates for a given strategy.</p>
+
+<p class = "center">Please note also that if your country has recently implemented new elements of a mitigation or suppression strategy, these may not be reflected in your countries current data yet.</p>
+
+<p class = "center">The original information about the usage of the calculator, written by Gabriel Goh is given below (also available at <a href="http://gabgoh.github.io/COVID/index.html">http://gabgoh.github.io/COVID/index.html</a>. To provide feedback and comments on the country-specific features please email me <a href="&#x6d;&#x61;&#x69;&#x6c;&#x74;&#x6f;&#x3a;&#x6d;&#x65;&#x69;&#x65;&#x72;&#x2e;&#x62;&#x65;&#x6e;&#x6e;&#x6f;&#x40;&#x67;&#x6d;&#x61;&#x69;&#x6c;&#x2e;&#x63;&#x6f;&#x6d;">
+here</a>.</p>
+	     
+<p class ="center" style="border-top: 2px solid #666; width:950px; padding-top:10px;">
+At the time of writing, the coronavirus disease of 2019 remains a global health crisis of grave and uncertain magnitude. To the non-expert (such as myself), contextualizing the numbers, forecasts and epidemiological parameters described in the media and literature can be challenging. I created this calculator as an attempt to address this gap in understanding.</p>
 
 <p class = "center">
 This calculator implements a classical infectious disease model &mdash <b><a href="https://en.wikipedia.org/wiki/Compartmental_models_in_epidemiology#The_SEIR_model">SEIR</a> </b>(<b>S</b>usceptible → <span style="color:{colors[4]}"><b>E</b></span>xposed → <span style="color:{colors[3]}"><b>I</b></span>nfected → <span><b>R</b></span>emoved), an idealized model of spread still used in frontlines of research e.g. [<a href="https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(20)30260-9/fulltext">Wu, et. al</a>, <a href = "https://cmmid.github.io/topics/covid19/current-patterns-transmission/wuhan-early-dynamics.html">Kucharski et. al</a>]. The dynamics of this model are characterized by a set of four ordinary differential equations that correspond to the stages of the disease's progression:
