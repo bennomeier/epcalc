@@ -75,7 +75,11 @@ export function aggregatedData(country, province, shiftDays) {
 	for (var i = 0; i < length; i++) {
 	    //index = Math.round(i/parseFloat(numberOfEntries)*length);
 	    //console.log(index);
-	    returnData2.push([returnData[0][i], returnData[1][i]]);
+
+	    //instead of total confirmed add the dailz confirmed cases
+	    var dailyConfirmedTotal = returnData[1][i]
+	    var dailyConfirmedNew = returnData[1][i] - returnData[1][Math.max(i - 1, 0)];	    
+	    returnData2.push([returnData[0][i], dailyConfirmedNew]);
 	}
 	//console.log("returnData2: " + returnData2);
 	//console.log("length of abvoe: " + returnData2.length);
@@ -132,7 +136,7 @@ function createDictionary(logN, dayZero, R0, flag) {
     var oneDay = 1000 * 60 * 60 * 24;
     var day = Math.floor(diff / oneDay);
     //console.log('Day of year: ' + day);
-    var InterventionTime = day - dayZero -1;
+    var InterventionTime = day - dayZero;
 
     
     // how many days have passed between today and day Zero of the jhu dataset?

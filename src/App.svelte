@@ -1112,6 +1112,9 @@ button.strategy:hover{
 
 <p class = "center"><b>What is this?</b><br>This is a modification of Gabriel Goh's epidemic calculator (available <a href="http://gabgoh.github.io/COVID/index.html">here</a>), that complements the epidemic calculation with a graph of  confirmed cases and deaths for a specified country, based on the Johns Hopkins University repository. The app lets you explore different strategies to respond. See this article for further information: <a href="https://medium.com/@tomaspueyo/coronavirus-the-hammer-and-the-dance-be9337092b56">Tomas Pueyo - Coronavirus: The Hammer and the Dance</a></p>
 
+<p class = "center"><b>What is shown?</b><br>
+Please refer to the text below for a description of the simulated data. When you select "Johns Hopkins Data", the cumulative number of deaths on a given day is plotted in blue. This corresponds to the cumulated number of deaths in the simulation (shown in light blue). There is no exact analogue in the simulation for the number of confirmed cases in the real world. In pink we show the <i>new</i> number of cases in your country on a given day. This implies that new cases are only isolated following a positive test outcome - before they receive the test outcome they are infectious, not isolated and hence may be interpreted as analogue to the "infected" category of the simulation.</p>
+
 <p class = "center"><b>Response Strategies</b><br>While most countries have realized that simply observing the disease is not a good strategy, a debate is on whether it is better to mitigate or suppress the outbreak.</p>
 
 <p class = "center">A <italic>mitigaton</italic> strategy seeks to bring the growth rate {@html math_inline("R_{0}")} close to 1, so that the burden on the health care system can be managed. The goal of such a strategy is to achieve what is called herd immunity. Such a strategy implies that restrictions such as social distancing have to be in place for a long time since the number of new cases per day must be kept manageable. Moreover such a strategy gives the virus substantial opportunity to evolve.</p>
@@ -1124,6 +1127,10 @@ button.strategy:hover{
 Note that it is not possible to accurately predict the outcome figures for "Total infected" and "Fatalities" -  these have to be interpreted as order of magnitude estimates for a given strategy.</p>
 
 <p class = "center">Please note also that if your country has recently implemented new elements of a mitigation or suppression strategy, these may not be reflected in your countries current data yet.</p>
+
+<p class = "center"><b>Acknowledgements</b><br>
+Many thanks to Gabriel Goh for writing this excellent calculator in the first place, and to Karel Kouřil for feedback on the country specific features.
+
 
 <p class = "center">The original information about the usage of the calculator, written by Gabriel Goh is given below (also available at <a href="http://gabgoh.github.io/COVID/index.html">http://gabgoh.github.io/COVID/index.html</a>. To provide feedback and comments on the country-specific features please email me <a href="&#x6d;&#x61;&#x69;&#x6c;&#x74;&#x6f;&#x3a;&#x6d;&#x65;&#x69;&#x65;&#x72;&#x2e;&#x62;&#x65;&#x6e;&#x6e;&#x6f;&#x40;&#x67;&#x6d;&#x61;&#x69;&#x6c;&#x2e;&#x63;&#x6f;&#x6d;">
 here</a>.</p>

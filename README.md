@@ -2,6 +2,8 @@
 
 This is a fork of @gabgoh's epcalc epidemic calculator that shows country-specific up to date real world Deaths and Confirmed Cases as listed by the Johns Hopkins University Github Repository https://github.com/CSSEGISandData .
 
+* Update 2020/03/30: Plot daily increase in the number of confirmed cases, update documentation.
+
 * Update 2020/03/29: The documentation and the color scheme have been updated.
 
 
