@@ -152,6 +152,8 @@ countryParameters["Iran"] = {"All" : createDictionary(18.21, 18, 5, "ir")};
 countryParameters["Italy"] = {"All" : createDictionary(17.917, 0, 4, "it")};
 countryParameters["United Kingdom"] = {"All" : createDictionary(18.01, 20, 5, "gb")};
 countryParameters["France"] = {"All" : createDictionary(18.018, 20, 5, "fr")};
+countryParameters["Turkey"] = {"All" : createDictionary(18.2076, 30, 5, "tr")};
+countryParameters["Sweden"] = {"All" : createDictionary(16.130, 30, 5, "se")};
 countryParameters["China"] = {"Hubei" : createDictionary(17.884, 0, 3, "cn")};
 
 
