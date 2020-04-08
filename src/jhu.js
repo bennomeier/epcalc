@@ -30,6 +30,11 @@ function getData(country, province, shiftDays) {
 		//	province = "United Kngdom";
 		//    }
                 //}
+
+		//var myCountry = checkCountryListed(country, province) ? country : "US";
+		//var myProvince = checkCountryListed(country, province) ? province : "All";
+
+		//console.log("myProvince", myProvince);
 		
 		if (line["Country/Region"] == country) {
 		    //console.log(d); // this prints the entire country information for the given caseType
@@ -143,18 +148,24 @@ function createDictionary(logN, dayZero, R0, flag) {
     return {"logN" : logN, "dayZero": dayZero, "R0": R0, "InterventionTime": InterventionTime, "flag": flag}
 }
 
-var countryParameters = {}
-countryParameters["Germany"] = {"All" : createDictionary(18.23, 20, 4.6, "de")};
-countryParameters["Czechia"] = {"All" : createDictionary(16.18, 29, 3.7, "cz")};
+export var countryParameters = {}
+countryParameters["Argentina"] = {"All" : createDictionary(17.605, 30, 4, "ar")};
 countryParameters["Brazil"] = {"All" : createDictionary(19.15, 28, 5, "br")};
-countryParameters["US"] = {"All" : createDictionary(19.6, 18, 4.88, "us")};
+countryParameters["Czechia"] = {"All" : createDictionary(16.18, 29, 3.7, "cz")};
+countryParameters["China"] = {"Beijing" : createDictionary(16.885, 0, 3, "cn"),
+			      "Hubei" : createDictionary(17.884, 0, 3, "cn")
+                              };
+countryParameters["France"] = {"All" : createDictionary(18.018, 20, 5, "fr")};
+countryParameters["Germany"] = {"All" : createDictionary(18.23, 20, 4.6, "de")};
 countryParameters["Iran"] = {"All" : createDictionary(18.21, 18, 5, "ir")};
 countryParameters["Italy"] = {"All" : createDictionary(17.917, 0, 4, "it")};
-countryParameters["United Kingdom"] = {"All" : createDictionary(18.01, 20, 5, "gb")};
-countryParameters["France"] = {"All" : createDictionary(18.018, 20, 5, "fr")};
-countryParameters["Turkey"] = {"All" : createDictionary(18.2076, 30, 5, "tr")};
+countryParameters["Pakistan"] = {"All" : createDictionary(19.098, 35, 4, "pk")};
+countryParameters["Spain"] = {"All" : createDictionary(17.664, 20, 5, "es")};
 countryParameters["Sweden"] = {"All" : createDictionary(16.130, 30, 5, "se")};
-countryParameters["China"] = {"Hubei" : createDictionary(17.884, 0, 3, "cn")};
+countryParameters["Switzerland"] = {"All" : createDictionary(15.963, 30, 5, "ch")};
+countryParameters["Turkey"] = {"All" : createDictionary(18.2076, 30, 5, "tr")};
+countryParameters["United Kingdom"] = {"All" : createDictionary(18.01, 20, 5, "gb")};
+countryParameters["US"] = {"All" : createDictionary(19.6, 18, 4.88, "us")};
 
 
 //countryParameters["US"] = {"All" : createDictionary(19.6, 28, 5)};
@@ -167,8 +178,14 @@ export function getDateFromDayZero(dayZero) {
     return outbreak.toLocaleDateString()
 }
 
-export function getCountryParameters(country, province, parameter) {
-    return countryParameters[country][province ? province : "All"][parameter] 
+export function getCountryParameters(country, province, parameter) {	
+    if (checkCountryListed(country, province)) {
+	console.log("Country Here: ", country);
+	console.log("Province Here: ", province);
+	return countryParameters[country][province ? province : "All"][parameter]
+    } else {
+	return None
+    }
 }
 
 export function checkCountryListed(country, province) {

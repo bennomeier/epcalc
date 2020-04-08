@@ -31,22 +31,6 @@
     function safe_not_equal(a, b) {
         return a != a ? b == b : a !== b || ((a && typeof a === 'object') || typeof a === 'function');
     }
-    function create_slot(definition, ctx, fn) {
-        if (definition) {
-            const slot_ctx = get_slot_context(definition, ctx, fn);
-            return definition[0](slot_ctx);
-        }
-    }
-    function get_slot_context(definition, ctx, fn) {
-        return definition[1]
-            ? assign({}, assign(ctx.$$scope.ctx, definition[1](fn ? fn(ctx) : {})))
-            : ctx.$$scope.ctx;
-    }
-    function get_slot_changes(definition, ctx, changed, fn) {
-        return definition[1]
-            ? assign({}, assign(ctx.$$scope.changed || {}, definition[1](fn ? fn(changed) : {})))
-            : ctx.$$scope.changed || {};
-    }
 
     function append(target, node) {
         target.appendChild(node);
@@ -82,39 +66,11 @@
         node.addEventListener(event, handler, options);
         return () => node.removeEventListener(event, handler, options);
     }
-    function prevent_default(fn) {
-        return function (event) {
-            event.preventDefault();
-            // @ts-ignore
-            return fn.call(this, event);
-        };
-    }
     function attr(node, attribute, value) {
         if (value == null)
             node.removeAttribute(attribute);
         else
             node.setAttribute(attribute, value);
-    }
-    function set_attributes(node, attributes) {
-        for (const key in attributes) {
-            if (key === 'style') {
-                node.style.cssText = attributes[key];
-            }
-            else if (key in node) {
-                node[key] = attributes[key];
-            }
-            else {
-                attr(node, key, attributes[key]);
-            }
-        }
-    }
-    function set_custom_element_data(node, prop, value) {
-        if (prop in node) {
-            node[prop] = value;
-        }
-        else {
-            attr(node, prop, value);
-        }
     }
     function to_number(value) {
         return value === '' ? undefined : +value;
@@ -129,34 +85,6 @@
     }
     function set_style(node, key, value, important) {
         node.style.setProperty(key, value, important ? 'important' : '');
-    }
-    function add_resize_listener(element, fn) {
-        if (getComputedStyle(element).position === 'static') {
-            element.style.position = 'relative';
-        }
-        const object = document.createElement('object');
-        object.setAttribute('style', 'display: block; position: absolute; top: 0; left: 0; height: 100%; width: 100%; overflow: hidden; pointer-events: none; z-index: -1;');
-        object.type = 'text/html';
-        object.tabIndex = -1;
-        let win;
-        object.onload = () => {
-            win = object.contentDocument.defaultView;
-            win.addEventListener('resize', fn);
-        };
-        if (/Trident/.test(navigator.userAgent)) {
-            element.appendChild(object);
-            object.data = 'about:blank';
-        }
-        else {
-            object.data = 'about:blank';
-            element.appendChild(object);
-        }
-        return {
-            cancel: () => {
-                win && win.removeEventListener && win.removeEventListener('resize', fn);
-                element.removeChild(object);
-            }
-        };
     }
     function custom_event(type, detail) {
         const e = document.createEvent('CustomEvent');
@@ -198,28 +126,8 @@
             throw new Error(`Function called outside component initialization`);
         return current_component;
     }
-    function beforeUpdate(fn) {
-        get_current_component().$$.before_update.push(fn);
-    }
     function onMount(fn) {
         get_current_component().$$.on_mount.push(fn);
-    }
-    function onDestroy(fn) {
-        get_current_component().$$.on_destroy.push(fn);
-    }
-    function createEventDispatcher() {
-        const component = current_component;
-        return (type, detail) => {
-            const callbacks = component.$$.callbacks[type];
-            if (callbacks) {
-                // TODO are there situations where events could be dispatched
-                // in a server (non-DOM) environment?
-                const event = custom_event(type, detail);
-                callbacks.slice().forEach(fn => {
-                    fn.call(component, event);
-                });
-            }
-        };
     }
 
     const dirty_components = [];
@@ -233,10 +141,6 @@
             update_scheduled = true;
             resolved_promise.then(flush);
         }
-    }
-    function tick() {
-        schedule_update();
-        return resolved_promise;
     }
     function add_render_callback(fn) {
         render_callbacks.push(fn);
@@ -377,122 +281,6 @@
             }
             info.resolved = { [info.value]: promise };
         }
-    }
-
-    const globals = (typeof window !== 'undefined' ? window : global);
-    function outro_and_destroy_block(block, lookup) {
-        transition_out(block, 1, 1, () => {
-            lookup.delete(block.key);
-        });
-    }
-    function update_keyed_each(old_blocks, changed, get_key, dynamic, ctx, list, lookup, node, destroy, create_each_block, next, get_context) {
-        let o = old_blocks.length;
-        let n = list.length;
-        let i = o;
-        const old_indexes = {};
-        while (i--)
-            old_indexes[old_blocks[i].key] = i;
-        const new_blocks = [];
-        const new_lookup = new Map();
-        const deltas = new Map();
-        i = n;
-        while (i--) {
-            const child_ctx = get_context(ctx, list, i);
-            const key = get_key(child_ctx);
-            let block = lookup.get(key);
-            if (!block) {
-                block = create_each_block(key, child_ctx);
-                block.c();
-            }
-            else if (dynamic) {
-                block.p(changed, child_ctx);
-            }
-            new_lookup.set(key, new_blocks[i] = block);
-            if (key in old_indexes)
-                deltas.set(key, Math.abs(i - old_indexes[key]));
-        }
-        const will_move = new Set();
-        const did_move = new Set();
-        function insert(block) {
-            transition_in(block, 1);
-            block.m(node, next);
-            lookup.set(block.key, block);
-            next = block.first;
-            n--;
-        }
-        while (o && n) {
-            const new_block = new_blocks[n - 1];
-            const old_block = old_blocks[o - 1];
-            const new_key = new_block.key;
-            const old_key = old_block.key;
-            if (new_block === old_block) {
-                // do nothing
-                next = new_block.first;
-                o--;
-                n--;
-            }
-            else if (!new_lookup.has(old_key)) {
-                // remove old block
-                destroy(old_block, lookup);
-                o--;
-            }
-            else if (!lookup.has(new_key) || will_move.has(new_key)) {
-                insert(new_block);
-            }
-            else if (did_move.has(old_key)) {
-                o--;
-            }
-            else if (deltas.get(new_key) > deltas.get(old_key)) {
-                did_move.add(new_key);
-                insert(new_block);
-            }
-            else {
-                will_move.add(old_key);
-                o--;
-            }
-        }
-        while (o--) {
-            const old_block = old_blocks[o];
-            if (!new_lookup.has(old_block.key))
-                destroy(old_block, lookup);
-        }
-        while (n)
-            insert(new_blocks[n - 1]);
-        return new_blocks;
-    }
-
-    function get_spread_update(levels, updates) {
-        const update = {};
-        const to_null_out = {};
-        const accounted_for = { $$scope: 1 };
-        let i = levels.length;
-        while (i--) {
-            const o = levels[i];
-            const n = updates[i];
-            if (n) {
-                for (const key in o) {
-                    if (!(key in n))
-                        to_null_out[key] = 1;
-                }
-                for (const key in n) {
-                    if (!accounted_for[key]) {
-                        update[key] = n[key];
-                        accounted_for[key] = 1;
-                    }
-                }
-                levels[i] = n;
-            }
-            else {
-                for (const key in o) {
-                    accounted_for[key] = 1;
-                }
-            }
-        }
-        for (const key in to_null_out) {
-            if (!(key in update))
-                update[key] = undefined;
-        }
-        return update;
     }
 
     function bind(component, name, callback) {
@@ -5388,3871 +5176,6 @@
     	}
     }
 
-    /* node_modules/svelte-select/src/Item.svelte generated by Svelte v3.12.1 */
-
-    const file$1 = "node_modules/svelte-select/src/Item.svelte";
-
-    function create_fragment$1(ctx) {
-    	var div, raw_value = ctx.getOptionLabel(ctx.item, ctx.filterText) + "", div_class_value;
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			attr_dev(div, "class", div_class_value = "item " + ctx.itemClasses + " svelte-1xfc328");
-    			add_location(div, file$1, 60, 0, 1286);
-    		},
-
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
-    			div.innerHTML = raw_value;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if ((changed.getOptionLabel || changed.item || changed.filterText) && raw_value !== (raw_value = ctx.getOptionLabel(ctx.item, ctx.filterText) + "")) {
-    				div.innerHTML = raw_value;
-    			}
-
-    			if ((changed.itemClasses) && div_class_value !== (div_class_value = "item " + ctx.itemClasses + " svelte-1xfc328")) {
-    				attr_dev(div, "class", div_class_value);
-    			}
-    		},
-
-    		i: noop,
-    		o: noop,
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$1.name, type: "component", source: "", ctx });
-    	return block;
-    }
-
-    function instance$1($$self, $$props, $$invalidate) {
-    	let { isActive = false, isFirst = false, isHover = false, getOptionLabel = undefined, item = undefined, filterText = '' } = $$props;
-
-      let itemClasses = '';
-
-    	const writable_props = ['isActive', 'isFirst', 'isHover', 'getOptionLabel', 'item', 'filterText'];
-    	Object.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Item> was created with unknown prop '${key}'`);
-    	});
-
-    	$$self.$set = $$props => {
-    		if ('isActive' in $$props) $$invalidate('isActive', isActive = $$props.isActive);
-    		if ('isFirst' in $$props) $$invalidate('isFirst', isFirst = $$props.isFirst);
-    		if ('isHover' in $$props) $$invalidate('isHover', isHover = $$props.isHover);
-    		if ('getOptionLabel' in $$props) $$invalidate('getOptionLabel', getOptionLabel = $$props.getOptionLabel);
-    		if ('item' in $$props) $$invalidate('item', item = $$props.item);
-    		if ('filterText' in $$props) $$invalidate('filterText', filterText = $$props.filterText);
-    	};
-
-    	$$self.$capture_state = () => {
-    		return { isActive, isFirst, isHover, getOptionLabel, item, filterText, itemClasses };
-    	};
-
-    	$$self.$inject_state = $$props => {
-    		if ('isActive' in $$props) $$invalidate('isActive', isActive = $$props.isActive);
-    		if ('isFirst' in $$props) $$invalidate('isFirst', isFirst = $$props.isFirst);
-    		if ('isHover' in $$props) $$invalidate('isHover', isHover = $$props.isHover);
-    		if ('getOptionLabel' in $$props) $$invalidate('getOptionLabel', getOptionLabel = $$props.getOptionLabel);
-    		if ('item' in $$props) $$invalidate('item', item = $$props.item);
-    		if ('filterText' in $$props) $$invalidate('filterText', filterText = $$props.filterText);
-    		if ('itemClasses' in $$props) $$invalidate('itemClasses', itemClasses = $$props.itemClasses);
-    	};
-
-    	$$self.$$.update = ($$dirty = { isActive: 1, isFirst: 1, isHover: 1, item: 1 }) => {
-    		if ($$dirty.isActive || $$dirty.isFirst || $$dirty.isHover || $$dirty.item) { {
-            const classes = [];
-            if (isActive) { classes.push('active'); }
-            if (isFirst) { classes.push('first'); }
-            if (isHover) { classes.push('hover'); }
-            if (item.isGroupHeader) { classes.push('groupHeader'); }
-            if (item.isGroupItem) { classes.push('groupItem'); }
-            $$invalidate('itemClasses', itemClasses = classes.join(' '));
-          } }
-    	};
-
-    	return {
-    		isActive,
-    		isFirst,
-    		isHover,
-    		getOptionLabel,
-    		item,
-    		filterText,
-    		itemClasses
-    	};
-    }
-
-    class Item extends SvelteComponentDev {
-    	constructor(options) {
-    		super(options);
-    		init(this, options, instance$1, create_fragment$1, safe_not_equal, ["isActive", "isFirst", "isHover", "getOptionLabel", "item", "filterText"]);
-    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "Item", options, id: create_fragment$1.name });
-    	}
-
-    	get isActive() {
-    		throw new Error("<Item>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isActive(value) {
-    		throw new Error("<Item>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isFirst() {
-    		throw new Error("<Item>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isFirst(value) {
-    		throw new Error("<Item>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isHover() {
-    		throw new Error("<Item>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isHover(value) {
-    		throw new Error("<Item>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get getOptionLabel() {
-    		throw new Error("<Item>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set getOptionLabel(value) {
-    		throw new Error("<Item>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get item() {
-    		throw new Error("<Item>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set item(value) {
-    		throw new Error("<Item>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get filterText() {
-    		throw new Error("<Item>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set filterText(value) {
-    		throw new Error("<Item>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-    }
-
-    /* node_modules/svelte-select/src/VirtualList.svelte generated by Svelte v3.12.1 */
-
-    const file$2 = "node_modules/svelte-select/src/VirtualList.svelte";
-
-    const get_default_slot_changes = ({ row, visible, hoverItemIndex }) => ({
-    	item: visible,
-    	i: visible,
-    	hoverItemIndex: hoverItemIndex
-    });
-    const get_default_slot_context = ({ row, visible, hoverItemIndex }) => ({
-    	item: row.data,
-    	i: row.index,
-    	hoverItemIndex: hoverItemIndex
-    });
-
-    function get_each_context$1(ctx, list, i) {
-    	const child_ctx = Object.create(ctx);
-    	child_ctx.row = list[i];
-    	return child_ctx;
-    }
-
-    // (158:2) {#each visible as row (row.index)}
-    function create_each_block$1(key_1, ctx) {
-    	var svelte_virtual_list_row, t0, t1, current;
-
-    	const default_slot_template = ctx.$$slots.default;
-    	const default_slot = create_slot(default_slot_template, ctx, get_default_slot_context);
-
-    	const block = {
-    		key: key_1,
-
-    		first: null,
-
-    		c: function create() {
-    			svelte_virtual_list_row = element("svelte-virtual-list-row");
-
-    			if (!default_slot) {
-    				t0 = text("Missing template");
-    			}
-
-    			if (default_slot) default_slot.c();
-    			t1 = space();
-
-    			set_custom_element_data(svelte_virtual_list_row, "class", "svelte-p6ehlv");
-    			add_location(svelte_virtual_list_row, file$2, 158, 3, 3514);
-    			this.first = svelte_virtual_list_row;
-    		},
-
-    		l: function claim(nodes) {
-    			if (default_slot) default_slot.l(svelte_virtual_list_row_nodes);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, svelte_virtual_list_row, anchor);
-
-    			if (!default_slot) {
-    				append_dev(svelte_virtual_list_row, t0);
-    			}
-
-    			else {
-    				default_slot.m(svelte_virtual_list_row, null);
-    			}
-
-    			append_dev(svelte_virtual_list_row, t1);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (default_slot && default_slot.p && (changed.$$scope || changed.visible || changed.hoverItemIndex)) {
-    				default_slot.p(
-    					get_slot_changes(default_slot_template, ctx, changed, get_default_slot_changes),
-    					get_slot_context(default_slot_template, ctx, get_default_slot_context)
-    				);
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(default_slot, local);
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(default_slot, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(svelte_virtual_list_row);
-    			}
-
-    			if (default_slot) default_slot.d(detaching);
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block$1.name, type: "each", source: "(158:2) {#each visible as row (row.index)}", ctx });
-    	return block;
-    }
-
-    function create_fragment$2(ctx) {
-    	var svelte_virtual_list_viewport, svelte_virtual_list_contents, each_blocks = [], each_1_lookup = new Map(), svelte_virtual_list_viewport_resize_listener, current, dispose;
-
-    	let each_value = ctx.visible;
-
-    	const get_key = ctx => ctx.row.index;
-
-    	for (let i = 0; i < each_value.length; i += 1) {
-    		let child_ctx = get_each_context$1(ctx, each_value, i);
-    		let key = get_key(child_ctx);
-    		each_1_lookup.set(key, each_blocks[i] = create_each_block$1(key, child_ctx));
-    	}
-
-    	const block = {
-    		c: function create() {
-    			svelte_virtual_list_viewport = element("svelte-virtual-list-viewport");
-    			svelte_virtual_list_contents = element("svelte-virtual-list-contents");
-
-    			for (let i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].c();
-    			}
-    			set_style(svelte_virtual_list_contents, "padding-top", "" + ctx.top + "px");
-    			set_style(svelte_virtual_list_contents, "padding-bottom", "" + ctx.bottom + "px");
-    			set_custom_element_data(svelte_virtual_list_contents, "class", "svelte-p6ehlv");
-    			add_location(svelte_virtual_list_contents, file$2, 156, 1, 3364);
-    			add_render_callback(() => ctx.svelte_virtual_list_viewport_resize_handler.call(svelte_virtual_list_viewport));
-    			set_style(svelte_virtual_list_viewport, "height", ctx.height);
-    			set_custom_element_data(svelte_virtual_list_viewport, "class", "svelte-p6ehlv");
-    			add_location(svelte_virtual_list_viewport, file$2, 154, 0, 3222);
-    			dispose = listen_dev(svelte_virtual_list_viewport, "scroll", ctx.handle_scroll);
-    		},
-
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, svelte_virtual_list_viewport, anchor);
-    			append_dev(svelte_virtual_list_viewport, svelte_virtual_list_contents);
-
-    			for (let i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].m(svelte_virtual_list_contents, null);
-    			}
-
-    			ctx.svelte_virtual_list_contents_binding(svelte_virtual_list_contents);
-    			svelte_virtual_list_viewport_resize_listener = add_resize_listener(svelte_virtual_list_viewport, ctx.svelte_virtual_list_viewport_resize_handler.bind(svelte_virtual_list_viewport));
-    			ctx.svelte_virtual_list_viewport_binding(svelte_virtual_list_viewport);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			const each_value = ctx.visible;
-
-    			group_outros();
-    			each_blocks = update_keyed_each(each_blocks, changed, get_key, 1, ctx, each_value, each_1_lookup, svelte_virtual_list_contents, outro_and_destroy_block, create_each_block$1, null, get_each_context$1);
-    			check_outros();
-
-    			if (!current || changed.top) {
-    				set_style(svelte_virtual_list_contents, "padding-top", "" + ctx.top + "px");
-    			}
-
-    			if (!current || changed.bottom) {
-    				set_style(svelte_virtual_list_contents, "padding-bottom", "" + ctx.bottom + "px");
-    			}
-
-    			if (!current || changed.height) {
-    				set_style(svelte_virtual_list_viewport, "height", ctx.height);
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			for (let i = 0; i < each_value.length; i += 1) {
-    				transition_in(each_blocks[i]);
-    			}
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			for (let i = 0; i < each_blocks.length; i += 1) {
-    				transition_out(each_blocks[i]);
-    			}
-
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(svelte_virtual_list_viewport);
-    			}
-
-    			for (let i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].d();
-    			}
-
-    			ctx.svelte_virtual_list_contents_binding(null);
-    			svelte_virtual_list_viewport_resize_listener.cancel();
-    			ctx.svelte_virtual_list_viewport_binding(null);
-    			dispose();
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$2.name, type: "component", source: "", ctx });
-    	return block;
-    }
-
-    function instance$2($$self, $$props, $$invalidate) {
-    	// props
-    	let { items = undefined, height = '100%', itemHeight = 40, hoverItemIndex = 0, start = 0, end = 0 } = $$props;
-
-    	// local state
-    	let height_map = [];
-    	let rows;
-    	let viewport;
-    	let contents;
-    	let viewport_height = 0;
-    	let visible;
-    	let mounted;
-
-    	let top = 0;
-    	let bottom = 0;
-    	let average_height;
-
-    	async function refresh(items, viewport_height, itemHeight) {
-    		const { scrollTop } = viewport;
-
-    		await tick(); // wait until the DOM is up to date
-
-    		let content_height = top - scrollTop;
-    		let i = start;
-
-    		while (content_height < viewport_height && i < items.length) {
-    			let row = rows[i - start];
-
-    			if (!row) {
-    				$$invalidate('end', end = i + 1);
-    				await tick(); // render the newly visible row
-    				row = rows[i - start];
-    			}
-
-    			const row_height = height_map[i] = itemHeight || row.offsetHeight;
-    			content_height += row_height;
-    			i += 1;
-    		}
-
-    		$$invalidate('end', end = i);
-
-    		const remaining = items.length - end;
-    		average_height = (top + content_height) / end;
-
-    		$$invalidate('bottom', bottom = remaining * average_height);
-    		height_map.length = items.length;
-
-    		$$invalidate('viewport', viewport.scrollTop = 0, viewport);
-    	}
-
-    	async function handle_scroll() {
-    		const { scrollTop } = viewport;
-
-    		const old_start = start;
-
-    		for (let v = 0; v < rows.length; v += 1) {
-    			height_map[start + v] = itemHeight || rows[v].offsetHeight;
-    		}
-
-    		let i = 0;
-    		let y = 0;
-
-    		while (i < items.length) {
-    			const row_height = height_map[i] || average_height;
-    			if (y + row_height > scrollTop) {
-    				$$invalidate('start', start = i);
-    				$$invalidate('top', top = y);
-
-    				break;
-    			}
-
-    			y += row_height;
-    			i += 1;
-    		}
-
-    		while (i < items.length) {
-    			y += height_map[i] || average_height;
-    			i += 1;
-
-    			if (y > scrollTop + viewport_height) break;
-    		}
-
-    		$$invalidate('end', end = i);
-
-    		const remaining = items.length - end;
-    		average_height = y / end;
-
-    		while (i < items.length) height_map[i++] = average_height;
-    		$$invalidate('bottom', bottom = remaining * average_height);
-
-    		// prevent jumping if we scrolled up into unknown territory
-    		if (start < old_start) {
-    			await tick();
-
-    			let expected_height = 0;
-    			let actual_height = 0;
-
-    			for (let i = start; i < old_start; i += 1) {
-    				if (rows[i - start]) {
-    					expected_height += height_map[i];
-    					actual_height += itemHeight || rows[i - start].offsetHeight;
-    				}
-    			}
-
-    			const d = actual_height - expected_height;
-    			viewport.scrollTo(0, scrollTop + d);
-    		}
-
-    		// TODO if we overestimated the space these
-    		// rows would occupy we may need to add some
-    		// more. maybe we can just call handle_scroll again?
-    	}
-
-    	// trigger initial refresh
-    	onMount(() => {
-    		rows = contents.getElementsByTagName('svelte-virtual-list-row');
-    		$$invalidate('mounted', mounted = true);
-    	});
-
-    	const writable_props = ['items', 'height', 'itemHeight', 'hoverItemIndex', 'start', 'end'];
-    	Object.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<VirtualList> was created with unknown prop '${key}'`);
-    	});
-
-    	let { $$slots = {}, $$scope } = $$props;
-
-    	function svelte_virtual_list_contents_binding($$value) {
-    		binding_callbacks[$$value ? 'unshift' : 'push'](() => {
-    			$$invalidate('contents', contents = $$value);
-    		});
-    	}
-
-    	function svelte_virtual_list_viewport_resize_handler() {
-    		viewport_height = this.offsetHeight;
-    		$$invalidate('viewport_height', viewport_height);
-    	}
-
-    	function svelte_virtual_list_viewport_binding($$value) {
-    		binding_callbacks[$$value ? 'unshift' : 'push'](() => {
-    			$$invalidate('viewport', viewport = $$value);
-    		});
-    	}
-
-    	$$self.$set = $$props => {
-    		if ('items' in $$props) $$invalidate('items', items = $$props.items);
-    		if ('height' in $$props) $$invalidate('height', height = $$props.height);
-    		if ('itemHeight' in $$props) $$invalidate('itemHeight', itemHeight = $$props.itemHeight);
-    		if ('hoverItemIndex' in $$props) $$invalidate('hoverItemIndex', hoverItemIndex = $$props.hoverItemIndex);
-    		if ('start' in $$props) $$invalidate('start', start = $$props.start);
-    		if ('end' in $$props) $$invalidate('end', end = $$props.end);
-    		if ('$$scope' in $$props) $$invalidate('$$scope', $$scope = $$props.$$scope);
-    	};
-
-    	$$self.$capture_state = () => {
-    		return { items, height, itemHeight, hoverItemIndex, start, end, height_map, rows, viewport, contents, viewport_height, visible, mounted, top, bottom, average_height };
-    	};
-
-    	$$self.$inject_state = $$props => {
-    		if ('items' in $$props) $$invalidate('items', items = $$props.items);
-    		if ('height' in $$props) $$invalidate('height', height = $$props.height);
-    		if ('itemHeight' in $$props) $$invalidate('itemHeight', itemHeight = $$props.itemHeight);
-    		if ('hoverItemIndex' in $$props) $$invalidate('hoverItemIndex', hoverItemIndex = $$props.hoverItemIndex);
-    		if ('start' in $$props) $$invalidate('start', start = $$props.start);
-    		if ('end' in $$props) $$invalidate('end', end = $$props.end);
-    		if ('height_map' in $$props) height_map = $$props.height_map;
-    		if ('rows' in $$props) rows = $$props.rows;
-    		if ('viewport' in $$props) $$invalidate('viewport', viewport = $$props.viewport);
-    		if ('contents' in $$props) $$invalidate('contents', contents = $$props.contents);
-    		if ('viewport_height' in $$props) $$invalidate('viewport_height', viewport_height = $$props.viewport_height);
-    		if ('visible' in $$props) $$invalidate('visible', visible = $$props.visible);
-    		if ('mounted' in $$props) $$invalidate('mounted', mounted = $$props.mounted);
-    		if ('top' in $$props) $$invalidate('top', top = $$props.top);
-    		if ('bottom' in $$props) $$invalidate('bottom', bottom = $$props.bottom);
-    		if ('average_height' in $$props) average_height = $$props.average_height;
-    	};
-
-    	$$self.$$.update = ($$dirty = { items: 1, start: 1, end: 1, mounted: 1, viewport_height: 1, itemHeight: 1 }) => {
-    		if ($$dirty.items || $$dirty.start || $$dirty.end) { $$invalidate('visible', visible = items.slice(start, end).map((data, i) => {
-    				return { index: i + start, data };
-    			})); }
-    		if ($$dirty.mounted || $$dirty.items || $$dirty.viewport_height || $$dirty.itemHeight) { if (mounted) refresh(items, viewport_height, itemHeight); }
-    	};
-
-    	return {
-    		items,
-    		height,
-    		itemHeight,
-    		hoverItemIndex,
-    		start,
-    		end,
-    		viewport,
-    		contents,
-    		viewport_height,
-    		visible,
-    		top,
-    		bottom,
-    		handle_scroll,
-    		svelte_virtual_list_contents_binding,
-    		svelte_virtual_list_viewport_resize_handler,
-    		svelte_virtual_list_viewport_binding,
-    		$$slots,
-    		$$scope
-    	};
-    }
-
-    class VirtualList extends SvelteComponentDev {
-    	constructor(options) {
-    		super(options);
-    		init(this, options, instance$2, create_fragment$2, safe_not_equal, ["items", "height", "itemHeight", "hoverItemIndex", "start", "end"]);
-    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "VirtualList", options, id: create_fragment$2.name });
-    	}
-
-    	get items() {
-    		throw new Error("<VirtualList>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set items(value) {
-    		throw new Error("<VirtualList>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get height() {
-    		throw new Error("<VirtualList>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set height(value) {
-    		throw new Error("<VirtualList>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get itemHeight() {
-    		throw new Error("<VirtualList>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set itemHeight(value) {
-    		throw new Error("<VirtualList>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get hoverItemIndex() {
-    		throw new Error("<VirtualList>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set hoverItemIndex(value) {
-    		throw new Error("<VirtualList>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get start() {
-    		throw new Error("<VirtualList>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set start(value) {
-    		throw new Error("<VirtualList>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get end() {
-    		throw new Error("<VirtualList>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set end(value) {
-    		throw new Error("<VirtualList>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-    }
-
-    /* node_modules/svelte-select/src/List.svelte generated by Svelte v3.12.1 */
-
-    const file$3 = "node_modules/svelte-select/src/List.svelte";
-
-    function get_each_context$2(ctx, list, i) {
-    	const child_ctx = Object.create(ctx);
-    	child_ctx.item = list[i];
-    	child_ctx.i = i;
-    	return child_ctx;
-    }
-
-    // (210:0) {#if isVirtualList}
-    function create_if_block_3$1(ctx) {
-    	var div, current;
-
-    	var virtuallist = new VirtualList({
-    		props: {
-    		items: ctx.items,
-    		itemHeight: ctx.itemHeight,
-    		$$slots: {
-    		default: [create_default_slot, ({ item, i }) => ({ item, i })]
-    	},
-    		$$scope: { ctx }
-    	},
-    		$$inline: true
-    	});
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			virtuallist.$$.fragment.c();
-    			attr_dev(div, "class", "listContainer virtualList svelte-bqv8jo");
-    			add_location(div, file$3, 210, 0, 5850);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
-    			mount_component(virtuallist, div, null);
-    			ctx.div_binding(div);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			var virtuallist_changes = {};
-    			if (changed.items) virtuallist_changes.items = ctx.items;
-    			if (changed.itemHeight) virtuallist_changes.itemHeight = ctx.itemHeight;
-    			if (changed.$$scope || changed.Item || changed.filterText || changed.getOptionLabel || changed.selectedValue || changed.optionIdentifier || changed.hoverItemIndex || changed.items) virtuallist_changes.$$scope = { changed, ctx };
-    			virtuallist.$set(virtuallist_changes);
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(virtuallist.$$.fragment, local);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(virtuallist.$$.fragment, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-
-    			destroy_component(virtuallist);
-
-    			ctx.div_binding(null);
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_3$1.name, type: "if", source: "(210:0) {#if isVirtualList}", ctx });
-    	return block;
-    }
-
-    // (213:2) <VirtualList {items} {itemHeight} let:item let:i>
-    function create_default_slot(ctx) {
-    	var div, current, dispose;
-
-    	var switch_value = ctx.Item;
-
-    	function switch_props(ctx) {
-    		return {
-    			props: {
-    			item: ctx.item,
-    			filterText: ctx.filterText,
-    			getOptionLabel: ctx.getOptionLabel,
-    			isFirst: isItemFirst(ctx.i),
-    			isActive: isItemActive(ctx.item, ctx.selectedValue, ctx.optionIdentifier),
-    			isHover: isItemHover(ctx.hoverItemIndex, ctx.item, ctx.i, ctx.items)
-    		},
-    			$$inline: true
-    		};
-    	}
-
-    	if (switch_value) {
-    		var switch_instance = new switch_value(switch_props(ctx));
-    	}
-
-    	function mouseover_handler() {
-    		return ctx.mouseover_handler(ctx);
-    	}
-
-    	function click_handler(...args) {
-    		return ctx.click_handler(ctx, ...args);
-    	}
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			if (switch_instance) switch_instance.$$.fragment.c();
-    			attr_dev(div, "class", "listItem");
-    			add_location(div, file$3, 214, 4, 5972);
-
-    			dispose = [
-    				listen_dev(div, "mouseover", mouseover_handler),
-    				listen_dev(div, "click", click_handler)
-    			];
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
-
-    			if (switch_instance) {
-    				mount_component(switch_instance, div, null);
-    			}
-
-    			current = true;
-    		},
-
-    		p: function update(changed, new_ctx) {
-    			ctx = new_ctx;
-    			var switch_instance_changes = {};
-    			if (changed.item) switch_instance_changes.item = ctx.item;
-    			if (changed.filterText) switch_instance_changes.filterText = ctx.filterText;
-    			if (changed.getOptionLabel) switch_instance_changes.getOptionLabel = ctx.getOptionLabel;
-    			if (changed.i) switch_instance_changes.isFirst = isItemFirst(ctx.i);
-    			if (changed.item || changed.selectedValue || changed.optionIdentifier) switch_instance_changes.isActive = isItemActive(ctx.item, ctx.selectedValue, ctx.optionIdentifier);
-    			if (changed.hoverItemIndex || changed.item || changed.i || changed.items) switch_instance_changes.isHover = isItemHover(ctx.hoverItemIndex, ctx.item, ctx.i, ctx.items);
-
-    			if (switch_value !== (switch_value = ctx.Item)) {
-    				if (switch_instance) {
-    					group_outros();
-    					const old_component = switch_instance;
-    					transition_out(old_component.$$.fragment, 1, 0, () => {
-    						destroy_component(old_component, 1);
-    					});
-    					check_outros();
-    				}
-
-    				if (switch_value) {
-    					switch_instance = new switch_value(switch_props(ctx));
-
-    					switch_instance.$$.fragment.c();
-    					transition_in(switch_instance.$$.fragment, 1);
-    					mount_component(switch_instance, div, null);
-    				} else {
-    					switch_instance = null;
-    				}
-    			}
-
-    			else if (switch_value) {
-    				switch_instance.$set(switch_instance_changes);
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			if (switch_instance) transition_in(switch_instance.$$.fragment, local);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			if (switch_instance) transition_out(switch_instance.$$.fragment, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-
-    			if (switch_instance) destroy_component(switch_instance);
-    			run_all(dispose);
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_default_slot.name, type: "slot", source: "(213:2) <VirtualList {items} {itemHeight} let:item let:i>", ctx });
-    	return block;
-    }
-
-    // (232:0) {#if !isVirtualList}
-    function create_if_block$1(ctx) {
-    	var div, current;
-
-    	let each_value = ctx.items;
-
-    	let each_blocks = [];
-
-    	for (let i = 0; i < each_value.length; i += 1) {
-    		each_blocks[i] = create_each_block$2(get_each_context$2(ctx, each_value, i));
-    	}
-
-    	const out = i => transition_out(each_blocks[i], 1, 1, () => {
-    		each_blocks[i] = null;
-    	});
-
-    	let each_1_else = null;
-
-    	if (!each_value.length) {
-    		each_1_else = create_else_block_1$1(ctx);
-    		each_1_else.c();
-    	}
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-
-    			for (let i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].c();
-    			}
-    			attr_dev(div, "class", "listContainer svelte-bqv8jo");
-    			add_location(div, file$3, 232, 0, 6482);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
-
-    			for (let i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].m(div, null);
-    			}
-
-    			if (each_1_else) {
-    				each_1_else.m(div, null);
-    			}
-
-    			ctx.div_binding_1(div);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (changed.items || changed.getGroupHeaderLabel || changed.Item || changed.filterText || changed.getOptionLabel || changed.isItemFirst || changed.isItemActive || changed.selectedValue || changed.optionIdentifier || changed.isItemHover || changed.hoverItemIndex || changed.hideEmptyState || changed.noOptionsMessage) {
-    				each_value = ctx.items;
-
-    				let i;
-    				for (i = 0; i < each_value.length; i += 1) {
-    					const child_ctx = get_each_context$2(ctx, each_value, i);
-
-    					if (each_blocks[i]) {
-    						each_blocks[i].p(changed, child_ctx);
-    						transition_in(each_blocks[i], 1);
-    					} else {
-    						each_blocks[i] = create_each_block$2(child_ctx);
-    						each_blocks[i].c();
-    						transition_in(each_blocks[i], 1);
-    						each_blocks[i].m(div, null);
-    					}
-    				}
-
-    				group_outros();
-    				for (i = each_value.length; i < each_blocks.length; i += 1) {
-    					out(i);
-    				}
-    				check_outros();
-    			}
-
-    			if (!each_value.length && each_1_else) {
-    				each_1_else.p(changed, ctx);
-    			} else if (!each_value.length) {
-    				each_1_else = create_else_block_1$1(ctx);
-    				each_1_else.c();
-    				each_1_else.m(div, null);
-    			} else if (each_1_else) {
-    				each_1_else.d(1);
-    				each_1_else = null;
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			for (let i = 0; i < each_value.length; i += 1) {
-    				transition_in(each_blocks[i]);
-    			}
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			each_blocks = each_blocks.filter(Boolean);
-    			for (let i = 0; i < each_blocks.length; i += 1) {
-    				transition_out(each_blocks[i]);
-    			}
-
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-
-    			destroy_each(each_blocks, detaching);
-
-    			if (each_1_else) each_1_else.d();
-
-    			ctx.div_binding_1(null);
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block$1.name, type: "if", source: "(232:0) {#if !isVirtualList}", ctx });
-    	return block;
-    }
-
-    // (254:2) {:else}
-    function create_else_block_1$1(ctx) {
-    	var if_block_anchor;
-
-    	var if_block = (!ctx.hideEmptyState) && create_if_block_2$1(ctx);
-
-    	const block = {
-    		c: function create() {
-    			if (if_block) if_block.c();
-    			if_block_anchor = empty();
-    		},
-
-    		m: function mount(target, anchor) {
-    			if (if_block) if_block.m(target, anchor);
-    			insert_dev(target, if_block_anchor, anchor);
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (!ctx.hideEmptyState) {
-    				if (if_block) {
-    					if_block.p(changed, ctx);
-    				} else {
-    					if_block = create_if_block_2$1(ctx);
-    					if_block.c();
-    					if_block.m(if_block_anchor.parentNode, if_block_anchor);
-    				}
-    			} else if (if_block) {
-    				if_block.d(1);
-    				if_block = null;
-    			}
-    		},
-
-    		d: function destroy(detaching) {
-    			if (if_block) if_block.d(detaching);
-
-    			if (detaching) {
-    				detach_dev(if_block_anchor);
-    			}
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_else_block_1$1.name, type: "else", source: "(254:2) {:else}", ctx });
-    	return block;
-    }
-
-    // (255:4) {#if !hideEmptyState}
-    function create_if_block_2$1(ctx) {
-    	var div, t;
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			t = text(ctx.noOptionsMessage);
-    			attr_dev(div, "class", "empty svelte-bqv8jo");
-    			add_location(div, file$3, 255, 6, 7186);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
-    			append_dev(div, t);
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (changed.noOptionsMessage) {
-    				set_data_dev(t, ctx.noOptionsMessage);
-    			}
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_2$1.name, type: "if", source: "(255:4) {#if !hideEmptyState}", ctx });
-    	return block;
-    }
-
-    // (237:4) { :else }
-    function create_else_block$1(ctx) {
-    	var div, t, current, dispose;
-
-    	var switch_value = ctx.Item;
-
-    	function switch_props(ctx) {
-    		return {
-    			props: {
-    			item: ctx.item,
-    			filterText: ctx.filterText,
-    			getOptionLabel: ctx.getOptionLabel,
-    			isFirst: isItemFirst(ctx.i),
-    			isActive: isItemActive(ctx.item, ctx.selectedValue, ctx.optionIdentifier),
-    			isHover: isItemHover(ctx.hoverItemIndex, ctx.item, ctx.i, ctx.items)
-    		},
-    			$$inline: true
-    		};
-    	}
-
-    	if (switch_value) {
-    		var switch_instance = new switch_value(switch_props(ctx));
-    	}
-
-    	function mouseover_handler_1() {
-    		return ctx.mouseover_handler_1(ctx);
-    	}
-
-    	function click_handler_1(...args) {
-    		return ctx.click_handler_1(ctx, ...args);
-    	}
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			if (switch_instance) switch_instance.$$.fragment.c();
-    			t = space();
-    			attr_dev(div, "class", "listItem");
-    			add_location(div, file$3, 237, 4, 6696);
-
-    			dispose = [
-    				listen_dev(div, "mouseover", mouseover_handler_1),
-    				listen_dev(div, "click", click_handler_1)
-    			];
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
-
-    			if (switch_instance) {
-    				mount_component(switch_instance, div, null);
-    			}
-
-    			append_dev(div, t);
-    			current = true;
-    		},
-
-    		p: function update(changed, new_ctx) {
-    			ctx = new_ctx;
-    			var switch_instance_changes = {};
-    			if (changed.items) switch_instance_changes.item = ctx.item;
-    			if (changed.filterText) switch_instance_changes.filterText = ctx.filterText;
-    			if (changed.getOptionLabel) switch_instance_changes.getOptionLabel = ctx.getOptionLabel;
-    			if (changed.items || changed.selectedValue || changed.optionIdentifier) switch_instance_changes.isActive = isItemActive(ctx.item, ctx.selectedValue, ctx.optionIdentifier);
-    			if (changed.hoverItemIndex || changed.items) switch_instance_changes.isHover = isItemHover(ctx.hoverItemIndex, ctx.item, ctx.i, ctx.items);
-
-    			if (switch_value !== (switch_value = ctx.Item)) {
-    				if (switch_instance) {
-    					group_outros();
-    					const old_component = switch_instance;
-    					transition_out(old_component.$$.fragment, 1, 0, () => {
-    						destroy_component(old_component, 1);
-    					});
-    					check_outros();
-    				}
-
-    				if (switch_value) {
-    					switch_instance = new switch_value(switch_props(ctx));
-
-    					switch_instance.$$.fragment.c();
-    					transition_in(switch_instance.$$.fragment, 1);
-    					mount_component(switch_instance, div, t);
-    				} else {
-    					switch_instance = null;
-    				}
-    			}
-
-    			else if (switch_value) {
-    				switch_instance.$set(switch_instance_changes);
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			if (switch_instance) transition_in(switch_instance.$$.fragment, local);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			if (switch_instance) transition_out(switch_instance.$$.fragment, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-
-    			if (switch_instance) destroy_component(switch_instance);
-    			run_all(dispose);
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_else_block$1.name, type: "else", source: "(237:4) { :else }", ctx });
-    	return block;
-    }
-
-    // (235:4) {#if item.isGroupHeader && !item.isSelectable}
-    function create_if_block_1$1(ctx) {
-    	var div, t_value = ctx.getGroupHeaderLabel(ctx.item) + "", t;
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			t = text(t_value);
-    			attr_dev(div, "class", "listGroupTitle svelte-bqv8jo");
-    			add_location(div, file$3, 235, 6, 6616);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
-    			append_dev(div, t);
-    		},
-
-    		p: function update(changed, ctx) {
-    			if ((changed.getGroupHeaderLabel || changed.items) && t_value !== (t_value = ctx.getGroupHeaderLabel(ctx.item) + "")) {
-    				set_data_dev(t, t_value);
-    			}
-    		},
-
-    		i: noop,
-    		o: noop,
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_1$1.name, type: "if", source: "(235:4) {#if item.isGroupHeader && !item.isSelectable}", ctx });
-    	return block;
-    }
-
-    // (234:2) {#each items as item, i}
-    function create_each_block$2(ctx) {
-    	var current_block_type_index, if_block, if_block_anchor, current;
-
-    	var if_block_creators = [
-    		create_if_block_1$1,
-    		create_else_block$1
-    	];
-
-    	var if_blocks = [];
-
-    	function select_block_type(changed, ctx) {
-    		if (ctx.item.isGroupHeader && !ctx.item.isSelectable) return 0;
-    		return 1;
-    	}
-
-    	current_block_type_index = select_block_type(null, ctx);
-    	if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-
-    	const block = {
-    		c: function create() {
-    			if_block.c();
-    			if_block_anchor = empty();
-    		},
-
-    		m: function mount(target, anchor) {
-    			if_blocks[current_block_type_index].m(target, anchor);
-    			insert_dev(target, if_block_anchor, anchor);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			var previous_block_index = current_block_type_index;
-    			current_block_type_index = select_block_type(changed, ctx);
-    			if (current_block_type_index === previous_block_index) {
-    				if_blocks[current_block_type_index].p(changed, ctx);
-    			} else {
-    				group_outros();
-    				transition_out(if_blocks[previous_block_index], 1, 1, () => {
-    					if_blocks[previous_block_index] = null;
-    				});
-    				check_outros();
-
-    				if_block = if_blocks[current_block_type_index];
-    				if (!if_block) {
-    					if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-    					if_block.c();
-    				}
-    				transition_in(if_block, 1);
-    				if_block.m(if_block_anchor.parentNode, if_block_anchor);
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(if_block);
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(if_block);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if_blocks[current_block_type_index].d(detaching);
-
-    			if (detaching) {
-    				detach_dev(if_block_anchor);
-    			}
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block$2.name, type: "each", source: "(234:2) {#each items as item, i}", ctx });
-    	return block;
-    }
-
-    function create_fragment$3(ctx) {
-    	var t, if_block1_anchor, current, dispose;
-
-    	var if_block0 = (ctx.isVirtualList) && create_if_block_3$1(ctx);
-
-    	var if_block1 = (!ctx.isVirtualList) && create_if_block$1(ctx);
-
-    	const block = {
-    		c: function create() {
-    			if (if_block0) if_block0.c();
-    			t = space();
-    			if (if_block1) if_block1.c();
-    			if_block1_anchor = empty();
-    			dispose = listen_dev(window, "keydown", ctx.handleKeyDown);
-    		},
-
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-
-    		m: function mount(target, anchor) {
-    			if (if_block0) if_block0.m(target, anchor);
-    			insert_dev(target, t, anchor);
-    			if (if_block1) if_block1.m(target, anchor);
-    			insert_dev(target, if_block1_anchor, anchor);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (ctx.isVirtualList) {
-    				if (if_block0) {
-    					if_block0.p(changed, ctx);
-    					transition_in(if_block0, 1);
-    				} else {
-    					if_block0 = create_if_block_3$1(ctx);
-    					if_block0.c();
-    					transition_in(if_block0, 1);
-    					if_block0.m(t.parentNode, t);
-    				}
-    			} else if (if_block0) {
-    				group_outros();
-    				transition_out(if_block0, 1, 1, () => {
-    					if_block0 = null;
-    				});
-    				check_outros();
-    			}
-
-    			if (!ctx.isVirtualList) {
-    				if (if_block1) {
-    					if_block1.p(changed, ctx);
-    					transition_in(if_block1, 1);
-    				} else {
-    					if_block1 = create_if_block$1(ctx);
-    					if_block1.c();
-    					transition_in(if_block1, 1);
-    					if_block1.m(if_block1_anchor.parentNode, if_block1_anchor);
-    				}
-    			} else if (if_block1) {
-    				group_outros();
-    				transition_out(if_block1, 1, 1, () => {
-    					if_block1 = null;
-    				});
-    				check_outros();
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(if_block0);
-    			transition_in(if_block1);
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(if_block0);
-    			transition_out(if_block1);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (if_block0) if_block0.d(detaching);
-
-    			if (detaching) {
-    				detach_dev(t);
-    			}
-
-    			if (if_block1) if_block1.d(detaching);
-
-    			if (detaching) {
-    				detach_dev(if_block1_anchor);
-    			}
-
-    			dispose();
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$3.name, type: "component", source: "", ctx });
-    	return block;
-    }
-
-    function isItemActive(item, selectedValue, optionIdentifier) {
-      return selectedValue && (selectedValue[optionIdentifier] === item[optionIdentifier]);
-    }
-
-    function isItemFirst(itemIndex) {
-      return itemIndex === 0;
-    }
-
-    function isItemHover(hoverItemIndex, item, itemIndex, items) {
-      return hoverItemIndex === itemIndex || items.length === 1;
-    }
-
-    function instance$3($$self, $$props, $$invalidate) {
-    	const dispatch = createEventDispatcher();
-
-      let { container = undefined } = $$props;
-
-      let { Item: Item$1 = Item, isVirtualList = false, items = [], getOptionLabel = (option, filterText) => {
-        if (option) return option.isCreator ? `Create \"${filterText}\"` : option.label;
-      } } = $$props;
-      let { getGroupHeaderLabel = (option) => { return option.label } } = $$props;
-      let { itemHeight = 40, hoverItemIndex = 0, selectedValue = undefined, optionIdentifier = 'value', hideEmptyState = false, noOptionsMessage = 'No options', isMulti = false, activeItemIndex = 0, filterText = '' } = $$props;
-
-      let isScrollingTimer = 0;
-      let isScrolling = false;
-      let prev_items;
-      let prev_activeItemIndex;
-      let prev_selectedValue;
-
-      onMount(() => {
-        if (items.length > 0 && !isMulti && selectedValue) {
-          const _hoverItemIndex = items.findIndex((item) => item[optionIdentifier] === selectedValue[optionIdentifier]);
-
-          if (_hoverItemIndex) {
-            $$invalidate('hoverItemIndex', hoverItemIndex = _hoverItemIndex);
-          }
-        }
-
-        scrollToActiveItem('active');
-
-
-        container.addEventListener('scroll', () => {
-          clearTimeout(isScrollingTimer);
-
-          isScrollingTimer = setTimeout(() => {
-            isScrolling = false;
-          }, 100);
-        }, false);
-      });
-
-      onDestroy(() => {
-        // clearTimeout(isScrollingTimer);
-      });
-
-      beforeUpdate(() => {
-
-        if (items !== prev_items && items.length > 0) {
-          $$invalidate('hoverItemIndex', hoverItemIndex = 0);
-        }
-
-
-        // if (prev_activeItemIndex && activeItemIndex > -1) {
-        //   hoverItemIndex = activeItemIndex;
-
-        //   scrollToActiveItem('active');
-        // }
-        // if (prev_selectedValue && selectedValue) {
-        //   scrollToActiveItem('active');
-
-        //   if (items && !isMulti) {
-        //     const hoverItemIndex = items.findIndex((item) => item[optionIdentifier] === selectedValue[optionIdentifier]);
-
-        //     if (hoverItemIndex) {
-        //       hoverItemIndex = hoverItemIndex;
-        //     }
-        //   }
-        // }
-
-        prev_items = items;
-        prev_activeItemIndex = activeItemIndex;
-        prev_selectedValue = selectedValue;
-      });
-
-      function handleSelect(item) {
-        if (item.isCreator) return;
-        dispatch('itemSelected', item);
-      }
-
-      function handleHover(i) {
-        if (isScrolling) return;
-        $$invalidate('hoverItemIndex', hoverItemIndex = i);
-      }
-
-      function handleClick(args) {
-        const { item, i, event } = args;
-        event.stopPropagation();
-
-        if (selectedValue && !isMulti && selectedValue[optionIdentifier] === item[optionIdentifier]) return closeList();
-
-        if (item.isCreator) {
-          dispatch('itemCreated', filterText);
-        } else {
-          $$invalidate('activeItemIndex', activeItemIndex = i);
-          $$invalidate('hoverItemIndex', hoverItemIndex = i);
-          handleSelect(item);
-        }
-      }
-
-      function closeList() {
-        dispatch('closeList');
-      }
-
-      async function updateHoverItem(increment) {
-        if (isVirtualList) return;
-
-        let isNonSelectableItem = true;
-
-        while (isNonSelectableItem) {
-          if (increment > 0 && hoverItemIndex === (items.length - 1)) {
-            $$invalidate('hoverItemIndex', hoverItemIndex = 0);
-          }
-          else if (increment < 0 && hoverItemIndex === 0) {
-            $$invalidate('hoverItemIndex', hoverItemIndex = items.length - 1);
-          }
-          else {
-            $$invalidate('hoverItemIndex', hoverItemIndex = hoverItemIndex + increment);
-          }
-
-          isNonSelectableItem = items[hoverItemIndex].isGroupHeader && !items[hoverItemIndex].isSelectable;
-        }
-
-        await tick();
-
-        scrollToActiveItem('hover');
-      }
-
-      function handleKeyDown(e) {
-        switch (e.key) {
-          case 'ArrowDown':
-            e.preventDefault();
-            items.length && updateHoverItem(1);
-            break;
-          case 'ArrowUp':
-            e.preventDefault();
-            items.length && updateHoverItem(-1);
-            break;
-          case 'Enter':
-            e.preventDefault();
-            if (items.length === 0) break;
-            const hoverItem = items[hoverItemIndex];
-            if (selectedValue && !isMulti && selectedValue[optionIdentifier] === hoverItem[optionIdentifier]) {
-              closeList();
-              break;
-            }
-
-            if (hoverItem.isCreator) {
-              dispatch('itemCreated', filterText);
-            } else {
-              $$invalidate('activeItemIndex', activeItemIndex = hoverItemIndex);
-              handleSelect(items[hoverItemIndex]);
-            }
-            break;
-          case 'Tab':
-            e.preventDefault();
-            if (items.length === 0) break;
-            if (selectedValue && selectedValue[optionIdentifier] === items[hoverItemIndex][optionIdentifier]) return closeList();
-            $$invalidate('activeItemIndex', activeItemIndex = hoverItemIndex);
-            handleSelect(items[hoverItemIndex]);
-            break;
-        }
-      }
-
-      function scrollToActiveItem(className) {
-        if (isVirtualList || !container) return;
-
-        let offsetBounding;
-        const focusedElemBounding = container.querySelector(`.listItem .${className}`);
-
-        if (focusedElemBounding) {
-          offsetBounding = container.getBoundingClientRect().bottom - focusedElemBounding.getBoundingClientRect().bottom;
-        }
-
-        $$invalidate('container', container.scrollTop -= offsetBounding, container);
-      }
-    	const writable_props = ['container', 'Item', 'isVirtualList', 'items', 'getOptionLabel', 'getGroupHeaderLabel', 'itemHeight', 'hoverItemIndex', 'selectedValue', 'optionIdentifier', 'hideEmptyState', 'noOptionsMessage', 'isMulti', 'activeItemIndex', 'filterText'];
-    	Object.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<List> was created with unknown prop '${key}'`);
-    	});
-
-    	const mouseover_handler = ({ i }) => handleHover(i);
-
-    	const click_handler = ({ item, i }, event) => handleClick({item, i, event});
-
-    	function div_binding($$value) {
-    		binding_callbacks[$$value ? 'unshift' : 'push'](() => {
-    			$$invalidate('container', container = $$value);
-    		});
-    	}
-
-    	const mouseover_handler_1 = ({ i }) => handleHover(i);
-
-    	const click_handler_1 = ({ item, i }, event) => handleClick({item, i, event});
-
-    	function div_binding_1($$value) {
-    		binding_callbacks[$$value ? 'unshift' : 'push'](() => {
-    			$$invalidate('container', container = $$value);
-    		});
-    	}
-
-    	$$self.$set = $$props => {
-    		if ('container' in $$props) $$invalidate('container', container = $$props.container);
-    		if ('Item' in $$props) $$invalidate('Item', Item$1 = $$props.Item);
-    		if ('isVirtualList' in $$props) $$invalidate('isVirtualList', isVirtualList = $$props.isVirtualList);
-    		if ('items' in $$props) $$invalidate('items', items = $$props.items);
-    		if ('getOptionLabel' in $$props) $$invalidate('getOptionLabel', getOptionLabel = $$props.getOptionLabel);
-    		if ('getGroupHeaderLabel' in $$props) $$invalidate('getGroupHeaderLabel', getGroupHeaderLabel = $$props.getGroupHeaderLabel);
-    		if ('itemHeight' in $$props) $$invalidate('itemHeight', itemHeight = $$props.itemHeight);
-    		if ('hoverItemIndex' in $$props) $$invalidate('hoverItemIndex', hoverItemIndex = $$props.hoverItemIndex);
-    		if ('selectedValue' in $$props) $$invalidate('selectedValue', selectedValue = $$props.selectedValue);
-    		if ('optionIdentifier' in $$props) $$invalidate('optionIdentifier', optionIdentifier = $$props.optionIdentifier);
-    		if ('hideEmptyState' in $$props) $$invalidate('hideEmptyState', hideEmptyState = $$props.hideEmptyState);
-    		if ('noOptionsMessage' in $$props) $$invalidate('noOptionsMessage', noOptionsMessage = $$props.noOptionsMessage);
-    		if ('isMulti' in $$props) $$invalidate('isMulti', isMulti = $$props.isMulti);
-    		if ('activeItemIndex' in $$props) $$invalidate('activeItemIndex', activeItemIndex = $$props.activeItemIndex);
-    		if ('filterText' in $$props) $$invalidate('filterText', filterText = $$props.filterText);
-    	};
-
-    	$$self.$capture_state = () => {
-    		return { container, Item: Item$1, isVirtualList, items, getOptionLabel, getGroupHeaderLabel, itemHeight, hoverItemIndex, selectedValue, optionIdentifier, hideEmptyState, noOptionsMessage, isMulti, activeItemIndex, filterText, isScrollingTimer, isScrolling, prev_items, prev_activeItemIndex, prev_selectedValue };
-    	};
-
-    	$$self.$inject_state = $$props => {
-    		if ('container' in $$props) $$invalidate('container', container = $$props.container);
-    		if ('Item' in $$props) $$invalidate('Item', Item$1 = $$props.Item);
-    		if ('isVirtualList' in $$props) $$invalidate('isVirtualList', isVirtualList = $$props.isVirtualList);
-    		if ('items' in $$props) $$invalidate('items', items = $$props.items);
-    		if ('getOptionLabel' in $$props) $$invalidate('getOptionLabel', getOptionLabel = $$props.getOptionLabel);
-    		if ('getGroupHeaderLabel' in $$props) $$invalidate('getGroupHeaderLabel', getGroupHeaderLabel = $$props.getGroupHeaderLabel);
-    		if ('itemHeight' in $$props) $$invalidate('itemHeight', itemHeight = $$props.itemHeight);
-    		if ('hoverItemIndex' in $$props) $$invalidate('hoverItemIndex', hoverItemIndex = $$props.hoverItemIndex);
-    		if ('selectedValue' in $$props) $$invalidate('selectedValue', selectedValue = $$props.selectedValue);
-    		if ('optionIdentifier' in $$props) $$invalidate('optionIdentifier', optionIdentifier = $$props.optionIdentifier);
-    		if ('hideEmptyState' in $$props) $$invalidate('hideEmptyState', hideEmptyState = $$props.hideEmptyState);
-    		if ('noOptionsMessage' in $$props) $$invalidate('noOptionsMessage', noOptionsMessage = $$props.noOptionsMessage);
-    		if ('isMulti' in $$props) $$invalidate('isMulti', isMulti = $$props.isMulti);
-    		if ('activeItemIndex' in $$props) $$invalidate('activeItemIndex', activeItemIndex = $$props.activeItemIndex);
-    		if ('filterText' in $$props) $$invalidate('filterText', filterText = $$props.filterText);
-    		if ('isScrollingTimer' in $$props) isScrollingTimer = $$props.isScrollingTimer;
-    		if ('isScrolling' in $$props) isScrolling = $$props.isScrolling;
-    		if ('prev_items' in $$props) prev_items = $$props.prev_items;
-    		if ('prev_activeItemIndex' in $$props) prev_activeItemIndex = $$props.prev_activeItemIndex;
-    		if ('prev_selectedValue' in $$props) prev_selectedValue = $$props.prev_selectedValue;
-    	};
-
-    	return {
-    		container,
-    		Item: Item$1,
-    		isVirtualList,
-    		items,
-    		getOptionLabel,
-    		getGroupHeaderLabel,
-    		itemHeight,
-    		hoverItemIndex,
-    		selectedValue,
-    		optionIdentifier,
-    		hideEmptyState,
-    		noOptionsMessage,
-    		isMulti,
-    		activeItemIndex,
-    		filterText,
-    		handleHover,
-    		handleClick,
-    		handleKeyDown,
-    		mouseover_handler,
-    		click_handler,
-    		div_binding,
-    		mouseover_handler_1,
-    		click_handler_1,
-    		div_binding_1
-    	};
-    }
-
-    class List extends SvelteComponentDev {
-    	constructor(options) {
-    		super(options);
-    		init(this, options, instance$3, create_fragment$3, safe_not_equal, ["container", "Item", "isVirtualList", "items", "getOptionLabel", "getGroupHeaderLabel", "itemHeight", "hoverItemIndex", "selectedValue", "optionIdentifier", "hideEmptyState", "noOptionsMessage", "isMulti", "activeItemIndex", "filterText"]);
-    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "List", options, id: create_fragment$3.name });
-    	}
-
-    	get container() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set container(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get Item() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set Item(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isVirtualList() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isVirtualList(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get items() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set items(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get getOptionLabel() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set getOptionLabel(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get getGroupHeaderLabel() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set getGroupHeaderLabel(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get itemHeight() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set itemHeight(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get hoverItemIndex() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set hoverItemIndex(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get selectedValue() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set selectedValue(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get optionIdentifier() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set optionIdentifier(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get hideEmptyState() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set hideEmptyState(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get noOptionsMessage() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set noOptionsMessage(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isMulti() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isMulti(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get activeItemIndex() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set activeItemIndex(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get filterText() {
-    		throw new Error("<List>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set filterText(value) {
-    		throw new Error("<List>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-    }
-
-    /* node_modules/svelte-select/src/Selection.svelte generated by Svelte v3.12.1 */
-
-    const file$4 = "node_modules/svelte-select/src/Selection.svelte";
-
-    function create_fragment$4(ctx) {
-    	var div, raw_value = ctx.getSelectionLabel(ctx.item) + "";
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			attr_dev(div, "class", "selection svelte-ch6bh7");
-    			add_location(div, file$4, 13, 0, 210);
-    		},
-
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
-    			div.innerHTML = raw_value;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if ((changed.getSelectionLabel || changed.item) && raw_value !== (raw_value = ctx.getSelectionLabel(ctx.item) + "")) {
-    				div.innerHTML = raw_value;
-    			}
-    		},
-
-    		i: noop,
-    		o: noop,
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$4.name, type: "component", source: "", ctx });
-    	return block;
-    }
-
-    function instance$4($$self, $$props, $$invalidate) {
-    	let { getSelectionLabel = undefined, item = undefined } = $$props;
-
-    	const writable_props = ['getSelectionLabel', 'item'];
-    	Object.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Selection> was created with unknown prop '${key}'`);
-    	});
-
-    	$$self.$set = $$props => {
-    		if ('getSelectionLabel' in $$props) $$invalidate('getSelectionLabel', getSelectionLabel = $$props.getSelectionLabel);
-    		if ('item' in $$props) $$invalidate('item', item = $$props.item);
-    	};
-
-    	$$self.$capture_state = () => {
-    		return { getSelectionLabel, item };
-    	};
-
-    	$$self.$inject_state = $$props => {
-    		if ('getSelectionLabel' in $$props) $$invalidate('getSelectionLabel', getSelectionLabel = $$props.getSelectionLabel);
-    		if ('item' in $$props) $$invalidate('item', item = $$props.item);
-    	};
-
-    	return { getSelectionLabel, item };
-    }
-
-    class Selection$1 extends SvelteComponentDev {
-    	constructor(options) {
-    		super(options);
-    		init(this, options, instance$4, create_fragment$4, safe_not_equal, ["getSelectionLabel", "item"]);
-    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "Selection", options, id: create_fragment$4.name });
-    	}
-
-    	get getSelectionLabel() {
-    		throw new Error("<Selection>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set getSelectionLabel(value) {
-    		throw new Error("<Selection>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get item() {
-    		throw new Error("<Selection>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set item(value) {
-    		throw new Error("<Selection>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-    }
-
-    /* node_modules/svelte-select/src/MultiSelection.svelte generated by Svelte v3.12.1 */
-
-    const file$5 = "node_modules/svelte-select/src/MultiSelection.svelte";
-
-    function get_each_context$3(ctx, list, i) {
-    	const child_ctx = Object.create(ctx);
-    	child_ctx.value = list[i];
-    	child_ctx.i = i;
-    	return child_ctx;
-    }
-
-    // (22:2) {#if !isDisabled}
-    function create_if_block$2(ctx) {
-    	var div, svg, path, dispose;
-
-    	function click_handler(...args) {
-    		return ctx.click_handler(ctx, ...args);
-    	}
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			svg = svg_element("svg");
-    			path = svg_element("path");
-    			attr_dev(path, "d", "M34.923,37.251L24,26.328L13.077,37.251L9.436,33.61l10.923-10.923L9.436,11.765l3.641-3.641L24,19.047L34.923,8.124 l3.641,3.641L27.641,22.688L38.564,33.61L34.923,37.251z");
-    			add_location(path, file$5, 24, 6, 806);
-    			attr_dev(svg, "width", "100%");
-    			attr_dev(svg, "height", "100%");
-    			attr_dev(svg, "viewBox", "-2 -2 50 50");
-    			attr_dev(svg, "focusable", "false");
-    			attr_dev(svg, "role", "presentation");
-    			attr_dev(svg, "class", "svelte-rtzfov");
-    			add_location(svg, file$5, 23, 4, 707);
-    			attr_dev(div, "class", "multiSelectItem_clear svelte-rtzfov");
-    			add_location(div, file$5, 22, 2, 623);
-    			dispose = listen_dev(div, "click", click_handler);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div, anchor);
-    			append_dev(div, svg);
-    			append_dev(svg, path);
-    		},
-
-    		p: function update(changed, new_ctx) {
-    			ctx = new_ctx;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-
-    			dispose();
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block$2.name, type: "if", source: "(22:2) {#if !isDisabled}", ctx });
-    	return block;
-    }
-
-    // (17:0) {#each selectedValue as value, i}
-    function create_each_block$3(ctx) {
-    	var div1, div0, raw_value = ctx.getSelectionLabel(ctx.value) + "", t0, t1, div1_class_value;
-
-    	var if_block = (!ctx.isDisabled) && create_if_block$2(ctx);
-
-    	const block = {
-    		c: function create() {
-    			div1 = element("div");
-    			div0 = element("div");
-    			t0 = space();
-    			if (if_block) if_block.c();
-    			t1 = space();
-    			attr_dev(div0, "class", "multiSelectItem_label svelte-rtzfov");
-    			add_location(div0, file$5, 18, 2, 519);
-    			attr_dev(div1, "class", div1_class_value = "multiSelectItem " + (ctx.activeSelectedValue === ctx.i ? 'active' : '') + " " + (ctx.isDisabled ? 'disabled' : '') + " svelte-rtzfov");
-    			add_location(div1, file$5, 17, 0, 412);
-    		},
-
-    		m: function mount(target, anchor) {
-    			insert_dev(target, div1, anchor);
-    			append_dev(div1, div0);
-    			div0.innerHTML = raw_value;
-    			append_dev(div1, t0);
-    			if (if_block) if_block.m(div1, null);
-    			append_dev(div1, t1);
-    		},
-
-    		p: function update(changed, ctx) {
-    			if ((changed.getSelectionLabel || changed.selectedValue) && raw_value !== (raw_value = ctx.getSelectionLabel(ctx.value) + "")) {
-    				div0.innerHTML = raw_value;
-    			}
-
-    			if (!ctx.isDisabled) {
-    				if (!if_block) {
-    					if_block = create_if_block$2(ctx);
-    					if_block.c();
-    					if_block.m(div1, t1);
-    				}
-    			} else if (if_block) {
-    				if_block.d(1);
-    				if_block = null;
-    			}
-
-    			if ((changed.activeSelectedValue || changed.isDisabled) && div1_class_value !== (div1_class_value = "multiSelectItem " + (ctx.activeSelectedValue === ctx.i ? 'active' : '') + " " + (ctx.isDisabled ? 'disabled' : '') + " svelte-rtzfov")) {
-    				attr_dev(div1, "class", div1_class_value);
-    			}
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div1);
-    			}
-
-    			if (if_block) if_block.d();
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_each_block$3.name, type: "each", source: "(17:0) {#each selectedValue as value, i}", ctx });
-    	return block;
-    }
-
-    function create_fragment$5(ctx) {
-    	var each_1_anchor;
-
-    	let each_value = ctx.selectedValue;
-
-    	let each_blocks = [];
-
-    	for (let i = 0; i < each_value.length; i += 1) {
-    		each_blocks[i] = create_each_block$3(get_each_context$3(ctx, each_value, i));
-    	}
-
-    	const block = {
-    		c: function create() {
-    			for (let i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].c();
-    			}
-
-    			each_1_anchor = empty();
-    		},
-
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-
-    		m: function mount(target, anchor) {
-    			for (let i = 0; i < each_blocks.length; i += 1) {
-    				each_blocks[i].m(target, anchor);
-    			}
-
-    			insert_dev(target, each_1_anchor, anchor);
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (changed.activeSelectedValue || changed.isDisabled || changed.getSelectionLabel || changed.selectedValue) {
-    				each_value = ctx.selectedValue;
-
-    				let i;
-    				for (i = 0; i < each_value.length; i += 1) {
-    					const child_ctx = get_each_context$3(ctx, each_value, i);
-
-    					if (each_blocks[i]) {
-    						each_blocks[i].p(changed, child_ctx);
-    					} else {
-    						each_blocks[i] = create_each_block$3(child_ctx);
-    						each_blocks[i].c();
-    						each_blocks[i].m(each_1_anchor.parentNode, each_1_anchor);
-    					}
-    				}
-
-    				for (; i < each_blocks.length; i += 1) {
-    					each_blocks[i].d(1);
-    				}
-    				each_blocks.length = each_value.length;
-    			}
-    		},
-
-    		i: noop,
-    		o: noop,
-
-    		d: function destroy(detaching) {
-    			destroy_each(each_blocks, detaching);
-
-    			if (detaching) {
-    				detach_dev(each_1_anchor);
-    			}
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$5.name, type: "component", source: "", ctx });
-    	return block;
-    }
-
-    function instance$5($$self, $$props, $$invalidate) {
-    	const dispatch = createEventDispatcher();
-
-      let { selectedValue = [], activeSelectedValue = undefined, isDisabled = false, getSelectionLabel = undefined } = $$props;
-
-      function handleClear(i, event) {
-        event.stopPropagation();
-        dispatch('multiItemClear', {i});
-      }
-
-    	const writable_props = ['selectedValue', 'activeSelectedValue', 'isDisabled', 'getSelectionLabel'];
-    	Object.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<MultiSelection> was created with unknown prop '${key}'`);
-    	});
-
-    	const click_handler = ({ i }, event) => handleClear(i, event);
-
-    	$$self.$set = $$props => {
-    		if ('selectedValue' in $$props) $$invalidate('selectedValue', selectedValue = $$props.selectedValue);
-    		if ('activeSelectedValue' in $$props) $$invalidate('activeSelectedValue', activeSelectedValue = $$props.activeSelectedValue);
-    		if ('isDisabled' in $$props) $$invalidate('isDisabled', isDisabled = $$props.isDisabled);
-    		if ('getSelectionLabel' in $$props) $$invalidate('getSelectionLabel', getSelectionLabel = $$props.getSelectionLabel);
-    	};
-
-    	$$self.$capture_state = () => {
-    		return { selectedValue, activeSelectedValue, isDisabled, getSelectionLabel };
-    	};
-
-    	$$self.$inject_state = $$props => {
-    		if ('selectedValue' in $$props) $$invalidate('selectedValue', selectedValue = $$props.selectedValue);
-    		if ('activeSelectedValue' in $$props) $$invalidate('activeSelectedValue', activeSelectedValue = $$props.activeSelectedValue);
-    		if ('isDisabled' in $$props) $$invalidate('isDisabled', isDisabled = $$props.isDisabled);
-    		if ('getSelectionLabel' in $$props) $$invalidate('getSelectionLabel', getSelectionLabel = $$props.getSelectionLabel);
-    	};
-
-    	return {
-    		selectedValue,
-    		activeSelectedValue,
-    		isDisabled,
-    		getSelectionLabel,
-    		handleClear,
-    		click_handler
-    	};
-    }
-
-    class MultiSelection extends SvelteComponentDev {
-    	constructor(options) {
-    		super(options);
-    		init(this, options, instance$5, create_fragment$5, safe_not_equal, ["selectedValue", "activeSelectedValue", "isDisabled", "getSelectionLabel"]);
-    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "MultiSelection", options, id: create_fragment$5.name });
-    	}
-
-    	get selectedValue() {
-    		throw new Error("<MultiSelection>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set selectedValue(value) {
-    		throw new Error("<MultiSelection>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get activeSelectedValue() {
-    		throw new Error("<MultiSelection>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set activeSelectedValue(value) {
-    		throw new Error("<MultiSelection>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isDisabled() {
-    		throw new Error("<MultiSelection>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isDisabled(value) {
-    		throw new Error("<MultiSelection>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get getSelectionLabel() {
-    		throw new Error("<MultiSelection>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set getSelectionLabel(value) {
-    		throw new Error("<MultiSelection>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-    }
-
-    function isOutOfViewport(elem) {
-      const bounding = elem.getBoundingClientRect();
-      const out = {};
-
-      out.top = bounding.top < 0;
-      out.left = bounding.left < 0;
-      out.bottom = bounding.bottom > (window.innerHeight || document.documentElement.clientHeight);
-      out.right = bounding.right > (window.innerWidth || document.documentElement.clientWidth);
-      out.any = out.top || out.left || out.bottom || out.right;
-
-      return out;
-    }
-
-    function debounce(func, wait, immediate) {
-      let timeout;
-
-      return function executedFunction() {
-        let context = this;
-        let args = arguments;
-    	    
-        let later = function() {
-          timeout = null;
-          if (!immediate) func.apply(context, args);
-        };
-
-        let callNow = immediate && !timeout;
-    	
-        clearTimeout(timeout);
-
-        timeout = setTimeout(later, wait);
-    	
-        if (callNow) func.apply(context, args);
-      };
-    }
-
-    /* node_modules/svelte-select/src/Select.svelte generated by Svelte v3.12.1 */
-    const { Object: Object_1 } = globals;
-
-    const file$6 = "node_modules/svelte-select/src/Select.svelte";
-
-    // (576:2) {#if isMulti && selectedValue && selectedValue.length > 0}
-    function create_if_block_5(ctx) {
-    	var switch_instance_anchor, current;
-
-    	var switch_value = ctx.MultiSelection;
-
-    	function switch_props(ctx) {
-    		return {
-    			props: {
-    			selectedValue: ctx.selectedValue,
-    			getSelectionLabel: ctx.getSelectionLabel,
-    			activeSelectedValue: ctx.activeSelectedValue,
-    			isDisabled: ctx.isDisabled
-    		},
-    			$$inline: true
-    		};
-    	}
-
-    	if (switch_value) {
-    		var switch_instance = new switch_value(switch_props(ctx));
-    		switch_instance.$on("multiItemClear", ctx.handleMultiItemClear);
-    		switch_instance.$on("focus", ctx.handleFocus);
-    	}
-
-    	const block = {
-    		c: function create() {
-    			if (switch_instance) switch_instance.$$.fragment.c();
-    			switch_instance_anchor = empty();
-    		},
-
-    		m: function mount(target_1, anchor) {
-    			if (switch_instance) {
-    				mount_component(switch_instance, target_1, anchor);
-    			}
-
-    			insert_dev(target_1, switch_instance_anchor, anchor);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			var switch_instance_changes = {};
-    			if (changed.selectedValue) switch_instance_changes.selectedValue = ctx.selectedValue;
-    			if (changed.getSelectionLabel) switch_instance_changes.getSelectionLabel = ctx.getSelectionLabel;
-    			if (changed.activeSelectedValue) switch_instance_changes.activeSelectedValue = ctx.activeSelectedValue;
-    			if (changed.isDisabled) switch_instance_changes.isDisabled = ctx.isDisabled;
-
-    			if (switch_value !== (switch_value = ctx.MultiSelection)) {
-    				if (switch_instance) {
-    					group_outros();
-    					const old_component = switch_instance;
-    					transition_out(old_component.$$.fragment, 1, 0, () => {
-    						destroy_component(old_component, 1);
-    					});
-    					check_outros();
-    				}
-
-    				if (switch_value) {
-    					switch_instance = new switch_value(switch_props(ctx));
-    					switch_instance.$on("multiItemClear", ctx.handleMultiItemClear);
-    					switch_instance.$on("focus", ctx.handleFocus);
-
-    					switch_instance.$$.fragment.c();
-    					transition_in(switch_instance.$$.fragment, 1);
-    					mount_component(switch_instance, switch_instance_anchor.parentNode, switch_instance_anchor);
-    				} else {
-    					switch_instance = null;
-    				}
-    			}
-
-    			else if (switch_value) {
-    				switch_instance.$set(switch_instance_changes);
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			if (switch_instance) transition_in(switch_instance.$$.fragment, local);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			if (switch_instance) transition_out(switch_instance.$$.fragment, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(switch_instance_anchor);
-    			}
-
-    			if (switch_instance) destroy_component(switch_instance, detaching);
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_5.name, type: "if", source: "(576:2) {#if isMulti && selectedValue && selectedValue.length > 0}", ctx });
-    	return block;
-    }
-
-    // (599:2) {:else}
-    function create_else_block$2(ctx) {
-    	var input_1, dispose;
-
-    	var input_1_levels = [
-    		ctx._inputAttributes,
-    		{ placeholder: ctx.placeholderText },
-    		{ style: ctx.inputStyles },
-    		{ class: "svelte-e3bo9s" }
-    	];
-
-    	var input_1_data = {};
-    	for (var i = 0; i < input_1_levels.length; i += 1) {
-    		input_1_data = assign(input_1_data, input_1_levels[i]);
-    	}
-
-    	const block = {
-    		c: function create() {
-    			input_1 = element("input");
-    			set_attributes(input_1, input_1_data);
-    			add_location(input_1, file$6, 599, 4, 15665);
-
-    			dispose = [
-    				listen_dev(input_1, "input", ctx.input_1_input_handler_1),
-    				listen_dev(input_1, "focus", ctx.handleFocus)
-    			];
-    		},
-
-    		m: function mount(target_1, anchor) {
-    			insert_dev(target_1, input_1, anchor);
-
-    			set_input_value(input_1, ctx.filterText);
-
-    			ctx.input_1_binding_1(input_1);
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (changed.filterText && (input_1.value !== ctx.filterText)) set_input_value(input_1, ctx.filterText);
-
-    			set_attributes(input_1, get_spread_update(input_1_levels, [
-    				(changed._inputAttributes) && ctx._inputAttributes,
-    				(changed.placeholderText) && { placeholder: ctx.placeholderText },
-    				(changed.inputStyles) && { style: ctx.inputStyles },
-    				{ class: "svelte-e3bo9s" }
-    			]));
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(input_1);
-    			}
-
-    			ctx.input_1_binding_1(null);
-    			run_all(dispose);
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_else_block$2.name, type: "else", source: "(599:2) {:else}", ctx });
-    	return block;
-    }
-
-    // (589:2) {#if isDisabled}
-    function create_if_block_4(ctx) {
-    	var input_1, dispose;
-
-    	var input_1_levels = [
-    		ctx._inputAttributes,
-    		{ placeholder: ctx.placeholderText },
-    		{ style: ctx.inputStyles },
-    		{ disabled: true },
-    		{ class: "svelte-e3bo9s" }
-    	];
-
-    	var input_1_data = {};
-    	for (var i = 0; i < input_1_levels.length; i += 1) {
-    		input_1_data = assign(input_1_data, input_1_levels[i]);
-    	}
-
-    	const block = {
-    		c: function create() {
-    			input_1 = element("input");
-    			set_attributes(input_1, input_1_data);
-    			add_location(input_1, file$6, 589, 4, 15438);
-
-    			dispose = [
-    				listen_dev(input_1, "input", ctx.input_1_input_handler),
-    				listen_dev(input_1, "focus", ctx.handleFocus)
-    			];
-    		},
-
-    		m: function mount(target_1, anchor) {
-    			insert_dev(target_1, input_1, anchor);
-
-    			set_input_value(input_1, ctx.filterText);
-
-    			ctx.input_1_binding(input_1);
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (changed.filterText && (input_1.value !== ctx.filterText)) set_input_value(input_1, ctx.filterText);
-
-    			set_attributes(input_1, get_spread_update(input_1_levels, [
-    				(changed._inputAttributes) && ctx._inputAttributes,
-    				(changed.placeholderText) && { placeholder: ctx.placeholderText },
-    				(changed.inputStyles) && { style: ctx.inputStyles },
-    				{ disabled: true },
-    				{ class: "svelte-e3bo9s" }
-    			]));
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(input_1);
-    			}
-
-    			ctx.input_1_binding(null);
-    			run_all(dispose);
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_4.name, type: "if", source: "(589:2) {#if isDisabled}", ctx });
-    	return block;
-    }
-
-    // (610:2) {#if !isMulti && showSelectedItem }
-    function create_if_block_3$2(ctx) {
-    	var div, current, dispose;
-
-    	var switch_value = ctx.Selection;
-
-    	function switch_props(ctx) {
-    		return {
-    			props: {
-    			item: ctx.selectedValue,
-    			getSelectionLabel: ctx.getSelectionLabel
-    		},
-    			$$inline: true
-    		};
-    	}
-
-    	if (switch_value) {
-    		var switch_instance = new switch_value(switch_props(ctx));
-    	}
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			if (switch_instance) switch_instance.$$.fragment.c();
-    			attr_dev(div, "class", "selectedItem svelte-e3bo9s");
-    			add_location(div, file$6, 610, 2, 15912);
-    			dispose = listen_dev(div, "focus", ctx.handleFocus);
-    		},
-
-    		m: function mount(target_1, anchor) {
-    			insert_dev(target_1, div, anchor);
-
-    			if (switch_instance) {
-    				mount_component(switch_instance, div, null);
-    			}
-
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			var switch_instance_changes = {};
-    			if (changed.selectedValue) switch_instance_changes.item = ctx.selectedValue;
-    			if (changed.getSelectionLabel) switch_instance_changes.getSelectionLabel = ctx.getSelectionLabel;
-
-    			if (switch_value !== (switch_value = ctx.Selection)) {
-    				if (switch_instance) {
-    					group_outros();
-    					const old_component = switch_instance;
-    					transition_out(old_component.$$.fragment, 1, 0, () => {
-    						destroy_component(old_component, 1);
-    					});
-    					check_outros();
-    				}
-
-    				if (switch_value) {
-    					switch_instance = new switch_value(switch_props(ctx));
-
-    					switch_instance.$$.fragment.c();
-    					transition_in(switch_instance.$$.fragment, 1);
-    					mount_component(switch_instance, div, null);
-    				} else {
-    					switch_instance = null;
-    				}
-    			}
-
-    			else if (switch_value) {
-    				switch_instance.$set(switch_instance_changes);
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			if (switch_instance) transition_in(switch_instance.$$.fragment, local);
-
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			if (switch_instance) transition_out(switch_instance.$$.fragment, local);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-
-    			if (switch_instance) destroy_component(switch_instance);
-    			dispose();
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_3$2.name, type: "if", source: "(610:2) {#if !isMulti && showSelectedItem }", ctx });
-    	return block;
-    }
-
-    // (616:2) {#if showSelectedItem && isClearable && !isDisabled && !isWaiting}
-    function create_if_block_2$2(ctx) {
-    	var div, svg, path, dispose;
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			svg = svg_element("svg");
-    			path = svg_element("path");
-    			attr_dev(path, "fill", "currentColor");
-    			attr_dev(path, "d", "M34.923,37.251L24,26.328L13.077,37.251L9.436,33.61l10.923-10.923L9.436,11.765l3.641-3.641L24,19.047L34.923,8.124 l3.641,3.641L27.641,22.688L38.564,33.61L34.923,37.251z");
-    			add_location(path, file$6, 619, 6, 16315);
-    			attr_dev(svg, "width", "100%");
-    			attr_dev(svg, "height", "100%");
-    			attr_dev(svg, "viewBox", "-2 -2 50 50");
-    			attr_dev(svg, "focusable", "false");
-    			attr_dev(svg, "role", "presentation");
-    			attr_dev(svg, "class", "svelte-e3bo9s");
-    			add_location(svg, file$6, 617, 4, 16207);
-    			attr_dev(div, "class", "clearSelect svelte-e3bo9s");
-    			add_location(div, file$6, 616, 2, 16137);
-    			dispose = listen_dev(div, "click", prevent_default(ctx.handleClear), false, true);
-    		},
-
-    		m: function mount(target_1, anchor) {
-    			insert_dev(target_1, div, anchor);
-    			append_dev(div, svg);
-    			append_dev(svg, path);
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-
-    			dispose();
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_2$2.name, type: "if", source: "(616:2) {#if showSelectedItem && isClearable && !isDisabled && !isWaiting}", ctx });
-    	return block;
-    }
-
-    // (626:2) {#if !isSearchable && !isDisabled && !isWaiting && (showSelectedItem && !isClearable || !showSelectedItem)}
-    function create_if_block_1$2(ctx) {
-    	var div, svg, path;
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			svg = svg_element("svg");
-    			path = svg_element("path");
-    			attr_dev(path, "d", "M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z");
-    			add_location(path, file$6, 628, 6, 16799);
-    			attr_dev(svg, "width", "100%");
-    			attr_dev(svg, "height", "100%");
-    			attr_dev(svg, "viewBox", "0 0 20 20");
-    			attr_dev(svg, "focusable", "false");
-    			attr_dev(svg, "class", "css-19bqh2r svelte-e3bo9s");
-    			add_location(svg, file$6, 627, 4, 16702);
-    			attr_dev(div, "class", "indicator svelte-e3bo9s");
-    			add_location(div, file$6, 626, 2, 16674);
-    		},
-
-    		m: function mount(target_1, anchor) {
-    			insert_dev(target_1, div, anchor);
-    			append_dev(div, svg);
-    			append_dev(svg, path);
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_1$2.name, type: "if", source: "(626:2) {#if !isSearchable && !isDisabled && !isWaiting && (showSelectedItem && !isClearable || !showSelectedItem)}", ctx });
-    	return block;
-    }
-
-    // (635:2) {#if isWaiting}
-    function create_if_block$3(ctx) {
-    	var div, svg, circle;
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			svg = svg_element("svg");
-    			circle = svg_element("circle");
-    			attr_dev(circle, "class", "spinner_path svelte-e3bo9s");
-    			attr_dev(circle, "cx", "50");
-    			attr_dev(circle, "cy", "50");
-    			attr_dev(circle, "r", "20");
-    			attr_dev(circle, "fill", "none");
-    			attr_dev(circle, "stroke", "currentColor");
-    			attr_dev(circle, "stroke-width", "5");
-    			attr_dev(circle, "stroke-miterlimit", "10");
-    			add_location(circle, file$6, 637, 6, 17233);
-    			attr_dev(svg, "class", "spinner_icon svelte-e3bo9s");
-    			attr_dev(svg, "viewBox", "25 25 50 50");
-    			add_location(svg, file$6, 636, 4, 17178);
-    			attr_dev(div, "class", "spinner svelte-e3bo9s");
-    			add_location(div, file$6, 635, 2, 17152);
-    		},
-
-    		m: function mount(target_1, anchor) {
-    			insert_dev(target_1, div, anchor);
-    			append_dev(div, svg);
-    			append_dev(svg, circle);
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block$3.name, type: "if", source: "(635:2) {#if isWaiting}", ctx });
-    	return block;
-    }
-
-    function create_fragment$6(ctx) {
-    	var div, t0, t1, t2, t3, t4, div_class_value, current, dispose;
-
-    	var if_block0 = (ctx.isMulti && ctx.selectedValue && ctx.selectedValue.length > 0) && create_if_block_5(ctx);
-
-    	function select_block_type(changed, ctx) {
-    		if (ctx.isDisabled) return create_if_block_4;
-    		return create_else_block$2;
-    	}
-
-    	var current_block_type = select_block_type(null, ctx);
-    	var if_block1 = current_block_type(ctx);
-
-    	var if_block2 = (!ctx.isMulti && ctx.showSelectedItem) && create_if_block_3$2(ctx);
-
-    	var if_block3 = (ctx.showSelectedItem && ctx.isClearable && !ctx.isDisabled && !ctx.isWaiting) && create_if_block_2$2(ctx);
-
-    	var if_block4 = (!ctx.isSearchable && !ctx.isDisabled && !ctx.isWaiting && (ctx.showSelectedItem && !ctx.isClearable || !ctx.showSelectedItem)) && create_if_block_1$2(ctx);
-
-    	var if_block5 = (ctx.isWaiting) && create_if_block$3(ctx);
-
-    	const block = {
-    		c: function create() {
-    			div = element("div");
-    			if (if_block0) if_block0.c();
-    			t0 = space();
-    			if_block1.c();
-    			t1 = space();
-    			if (if_block2) if_block2.c();
-    			t2 = space();
-    			if (if_block3) if_block3.c();
-    			t3 = space();
-    			if (if_block4) if_block4.c();
-    			t4 = space();
-    			if (if_block5) if_block5.c();
-    			attr_dev(div, "class", div_class_value = "" + ctx.containerClasses + " " + (ctx.hasError ? 'hasError' : '') + " svelte-e3bo9s");
-    			attr_dev(div, "style", ctx.containerStyles);
-    			add_location(div, file$6, 572, 0, 14990);
-
-    			dispose = [
-    				listen_dev(window, "click", ctx.handleWindowClick),
-    				listen_dev(window, "keydown", ctx.handleKeyDown),
-    				listen_dev(window, "resize", ctx.getPosition),
-    				listen_dev(div, "click", ctx.handleClick)
-    			];
-    		},
-
-    		l: function claim(nodes) {
-    			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
-    		},
-
-    		m: function mount(target_1, anchor) {
-    			insert_dev(target_1, div, anchor);
-    			if (if_block0) if_block0.m(div, null);
-    			append_dev(div, t0);
-    			if_block1.m(div, null);
-    			append_dev(div, t1);
-    			if (if_block2) if_block2.m(div, null);
-    			append_dev(div, t2);
-    			if (if_block3) if_block3.m(div, null);
-    			append_dev(div, t3);
-    			if (if_block4) if_block4.m(div, null);
-    			append_dev(div, t4);
-    			if (if_block5) if_block5.m(div, null);
-    			ctx.div_binding(div);
-    			current = true;
-    		},
-
-    		p: function update(changed, ctx) {
-    			if (ctx.isMulti && ctx.selectedValue && ctx.selectedValue.length > 0) {
-    				if (if_block0) {
-    					if_block0.p(changed, ctx);
-    					transition_in(if_block0, 1);
-    				} else {
-    					if_block0 = create_if_block_5(ctx);
-    					if_block0.c();
-    					transition_in(if_block0, 1);
-    					if_block0.m(div, t0);
-    				}
-    			} else if (if_block0) {
-    				group_outros();
-    				transition_out(if_block0, 1, 1, () => {
-    					if_block0 = null;
-    				});
-    				check_outros();
-    			}
-
-    			if (current_block_type === (current_block_type = select_block_type(changed, ctx)) && if_block1) {
-    				if_block1.p(changed, ctx);
-    			} else {
-    				if_block1.d(1);
-    				if_block1 = current_block_type(ctx);
-    				if (if_block1) {
-    					if_block1.c();
-    					if_block1.m(div, t1);
-    				}
-    			}
-
-    			if (!ctx.isMulti && ctx.showSelectedItem) {
-    				if (if_block2) {
-    					if_block2.p(changed, ctx);
-    					transition_in(if_block2, 1);
-    				} else {
-    					if_block2 = create_if_block_3$2(ctx);
-    					if_block2.c();
-    					transition_in(if_block2, 1);
-    					if_block2.m(div, t2);
-    				}
-    			} else if (if_block2) {
-    				group_outros();
-    				transition_out(if_block2, 1, 1, () => {
-    					if_block2 = null;
-    				});
-    				check_outros();
-    			}
-
-    			if (ctx.showSelectedItem && ctx.isClearable && !ctx.isDisabled && !ctx.isWaiting) {
-    				if (!if_block3) {
-    					if_block3 = create_if_block_2$2(ctx);
-    					if_block3.c();
-    					if_block3.m(div, t3);
-    				}
-    			} else if (if_block3) {
-    				if_block3.d(1);
-    				if_block3 = null;
-    			}
-
-    			if (!ctx.isSearchable && !ctx.isDisabled && !ctx.isWaiting && (ctx.showSelectedItem && !ctx.isClearable || !ctx.showSelectedItem)) {
-    				if (!if_block4) {
-    					if_block4 = create_if_block_1$2(ctx);
-    					if_block4.c();
-    					if_block4.m(div, t4);
-    				}
-    			} else if (if_block4) {
-    				if_block4.d(1);
-    				if_block4 = null;
-    			}
-
-    			if (ctx.isWaiting) {
-    				if (!if_block5) {
-    					if_block5 = create_if_block$3(ctx);
-    					if_block5.c();
-    					if_block5.m(div, null);
-    				}
-    			} else if (if_block5) {
-    				if_block5.d(1);
-    				if_block5 = null;
-    			}
-
-    			if ((!current || changed.containerClasses || changed.hasError) && div_class_value !== (div_class_value = "" + ctx.containerClasses + " " + (ctx.hasError ? 'hasError' : '') + " svelte-e3bo9s")) {
-    				attr_dev(div, "class", div_class_value);
-    			}
-
-    			if (!current || changed.containerStyles) {
-    				attr_dev(div, "style", ctx.containerStyles);
-    			}
-    		},
-
-    		i: function intro(local) {
-    			if (current) return;
-    			transition_in(if_block0);
-    			transition_in(if_block2);
-    			current = true;
-    		},
-
-    		o: function outro(local) {
-    			transition_out(if_block0);
-    			transition_out(if_block2);
-    			current = false;
-    		},
-
-    		d: function destroy(detaching) {
-    			if (detaching) {
-    				detach_dev(div);
-    			}
-
-    			if (if_block0) if_block0.d();
-    			if_block1.d();
-    			if (if_block2) if_block2.d();
-    			if (if_block3) if_block3.d();
-    			if (if_block4) if_block4.d();
-    			if (if_block5) if_block5.d();
-    			ctx.div_binding(null);
-    			run_all(dispose);
-    		}
-    	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$6.name, type: "component", source: "", ctx });
-    	return block;
-    }
-
-    function instance$6($$self, $$props, $$invalidate) {
-    	
-
-      const dispatch = createEventDispatcher();
-      let { container = undefined, input = undefined, Item: Item$1 = Item, Selection = Selection$1, MultiSelection: MultiSelection$1 = MultiSelection, isMulti = false, isDisabled = false, isCreatable = false, isFocused = false, selectedValue = undefined, filterText = '', placeholder = 'Select...', items = [], itemFilter = (label, filterText, option) => label.toLowerCase().includes(filterText.toLowerCase()) } = $$props;
-      let { groupBy = undefined, groupFilter = (groups) => groups } = $$props;
-      let { isGroupHeaderSelectable = false, getGroupHeaderLabel = (option) => {
-        return option.label
-      } } = $$props;
-      let { getOptionLabel = (option, filterText) => {
-        return option.isCreator ? `Create \"${filterText}\"` : option.label;
-      } } = $$props;
-      let { optionIdentifier = 'value', loadOptions = undefined, hasError = false, containerStyles = '', getSelectionLabel = (option) => {
-        if (option) return option.label
-      } } = $$props;
-
-      let { createGroupHeaderItem = (groupValue) => {
-        return {
-          value: groupValue,
-          label: groupValue
-        }
-      } } = $$props;
-
-      let { createItem = (filterText) => {
-        return {
-          value: filterText,
-          label: filterText
-        };
-      } } = $$props;
-
-      let { isSearchable = true, inputStyles = '', isClearable = true, isWaiting = false, listPlacement = 'auto', listOpen = false, list = undefined, isVirtualList = false, loadOptionsInterval = 300, noOptionsMessage = 'No options', hideEmptyState = false, filteredItems = [], inputAttributes = {}, listAutoWidth = true, itemHeight = 40 } = $$props;
-      
-
-      let target;
-      let activeSelectedValue;
-      let _items = [];
-      let originalItemsClone;
-      let containerClasses = '';
-      let prev_selectedValue;
-      let prev_listOpen;
-      let prev_filterText;
-      let prev_isFocused;
-      let prev_filteredItems;
-
-      async function resetFilter() {
-        await tick();
-        $$invalidate('filterText', filterText = '');
-      }
-
-      const getItems = debounce(async () => {
-        $$invalidate('isWaiting', isWaiting = true);
-        
-        $$invalidate('items', items = await loadOptions(filterText));
-      
-        $$invalidate('isWaiting', isWaiting = false);
-        $$invalidate('isFocused', isFocused = true);
-        $$invalidate('listOpen', listOpen = true);
-      }, loadOptionsInterval);
-
-      let _inputAttributes = {};
-
-      beforeUpdate(() => {
-        if (isMulti && selectedValue && selectedValue.length > 1) {
-          checkSelectedValueForDuplicates();
-        }
-
-        if (!isMulti && selectedValue && prev_selectedValue !== selectedValue) {
-          if (!prev_selectedValue || JSON.stringify(selectedValue[optionIdentifier]) !== JSON.stringify(prev_selectedValue[optionIdentifier])) {
-            dispatch('select', selectedValue);
-          }
-        }
-
-        if (isMulti && JSON.stringify(selectedValue) !== JSON.stringify(prev_selectedValue)) {
-          if (checkSelectedValueForDuplicates()) {
-            dispatch('select', selectedValue);
-          }
-        }
-
-        if (container && listOpen !== prev_listOpen) {
-          if (listOpen) {
-            loadList();
-          } else {
-            removeList();
-          }
-        }
-
-        if (filterText !== prev_filterText) {
-          if (filterText.length > 0) {
-            $$invalidate('isFocused', isFocused = true);
-            $$invalidate('listOpen', listOpen = true);
-
-            if (loadOptions) {
-              getItems();
-            } else {
-              loadList();
-              $$invalidate('listOpen', listOpen = true);
-
-              if (isMulti) {
-                $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
-              }
-            }
-          } else {
-            setList([]);
-          }
-
-          if (list) {
-            list.$set({
-              filterText
-            });
-          }
-        }
-
-        if (isFocused !== prev_isFocused) {
-          if (isFocused || listOpen) {
-            handleFocus();
-          } else {
-            resetFilter();
-            if (input) input.blur();
-          }
-        }
-
-        if (prev_filteredItems !== filteredItems) {
-          let _filteredItems = [...filteredItems];
-
-          if (isCreatable && filterText) {
-            const itemToCreate = createItem(filterText);
-            itemToCreate.isCreator = true;
-
-            const existingItemWithFilterValue = _filteredItems.find((item) => {
-              return item[optionIdentifier] === itemToCreate[optionIdentifier];
-            });
-
-            let existingSelectionWithFilterValue;
-
-            if (selectedValue) {
-              if (isMulti) {
-                existingSelectionWithFilterValue = selectedValue.find((selection) => {
-                  return selection[optionIdentifier] === itemToCreate[optionIdentifier];
-                });
-              } else if (selectedValue[optionIdentifier] === itemToCreate[optionIdentifier]) {
-                existingSelectionWithFilterValue = selectedValue;
-              }
-            }
-
-            if (!existingItemWithFilterValue && !existingSelectionWithFilterValue) {
-              _filteredItems = [..._filteredItems, itemToCreate];
-            }
-          }
-
-          setList(_filteredItems);
-        }
-
-        prev_selectedValue = selectedValue;
-        prev_listOpen = listOpen;
-        prev_filterText = filterText;
-        prev_isFocused = isFocused;
-        prev_filteredItems = filteredItems;
-      });
-
-      function checkSelectedValueForDuplicates() {
-        let noDuplicates = true;
-        if (selectedValue) {
-          const ids = [];
-          const uniqueValues = [];
-
-          selectedValue.forEach(val => {
-            if (!ids.includes(val[optionIdentifier])) {
-              ids.push(val[optionIdentifier]);
-              uniqueValues.push(val);
-            } else {
-              noDuplicates = false;
-            }
-          });
-
-          $$invalidate('selectedValue', selectedValue = uniqueValues);
-        }
-        return noDuplicates;
-      }
-
-      async function setList(items) {
-        await tick();
-        if (list) return list.$set({ items })
-        if (loadOptions && items.length > 0) loadList();
-      }
-
-      function handleMultiItemClear(event) {
-        const { detail } = event;
-        const itemToRemove = selectedValue[detail ? detail.i : selectedValue.length - 1];
-
-        if (selectedValue.length === 1) {
-          $$invalidate('selectedValue', selectedValue = undefined);
-        } else {
-          $$invalidate('selectedValue', selectedValue = selectedValue.filter((item) => {
-            return item !== itemToRemove;
-          }));
-        }
-
-        dispatch('clear', itemToRemove);
-        
-        getPosition();
-      }
-
-      async function getPosition() {
-        await tick();
-        if (!target || !container) return;
-        const { top, height, width } = container.getBoundingClientRect();
-
-        target.style['min-width'] = `${width}px`;
-        target.style.width = `${listAutoWidth ? 'auto' : '100%'}`;
-        target.style.left = '0';
-
-        if (listPlacement === 'top') {
-          target.style.bottom = `${height + 5}px`;
-        } else {
-          target.style.top = `${height + 5}px`;
-        }
-
-        target = target;
-
-        if (listPlacement === 'auto' && isOutOfViewport(target).bottom) {
-          target.style.top = ``;
-          target.style.bottom = `${height + 5}px`;
-        }
-
-        target.style.visibility = '';
-      }
-
-      function handleKeyDown(e) {
-        if (!isFocused) return;
-
-        switch (e.key) {
-          case 'ArrowDown':
-            e.preventDefault();
-            $$invalidate('listOpen', listOpen = true);
-            $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
-            break;
-          case 'ArrowUp':
-            e.preventDefault();
-            $$invalidate('listOpen', listOpen = true);
-            $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
-            break;
-          case 'Tab':
-            if (!listOpen) $$invalidate('isFocused', isFocused = false);
-            break;
-          case 'Backspace':
-            if (!isMulti || filterText.length > 0) return;
-            if (isMulti && selectedValue && selectedValue.length > 0) {
-              handleMultiItemClear(activeSelectedValue !== undefined ? activeSelectedValue : selectedValue.length - 1);
-              if (activeSelectedValue === 0 || activeSelectedValue === undefined) break;
-              $$invalidate('activeSelectedValue', activeSelectedValue = selectedValue.length > activeSelectedValue ? activeSelectedValue - 1 : undefined);
-            }
-            break;
-          case 'ArrowLeft':
-            if (list) list.$set({ hoverItemIndex: -1 });
-            if (!isMulti || filterText.length > 0) return;
-
-            if (activeSelectedValue === undefined) {
-              $$invalidate('activeSelectedValue', activeSelectedValue = selectedValue.length - 1);
-            } else if (selectedValue.length > activeSelectedValue && activeSelectedValue !== 0) {
-              $$invalidate('activeSelectedValue', activeSelectedValue -= 1);
-            }
-            break;
-          case 'ArrowRight':
-            if (list) list.$set({ hoverItemIndex: -1 });
-            if (!isMulti || filterText.length > 0 || activeSelectedValue === undefined) return;
-            if (activeSelectedValue === selectedValue.length - 1) {
-              $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
-            } else if (activeSelectedValue < selectedValue.length - 1) {
-              $$invalidate('activeSelectedValue', activeSelectedValue += 1);
-            }
-            break;
-        }
-      }
-
-      function handleFocus() {
-        $$invalidate('isFocused', isFocused = true);
-        if (input) input.focus();
-      }
-
-      function removeList() {
-        resetFilter();
-        $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
-
-        if (!list) return;
-        list.$destroy();
-        $$invalidate('list', list = undefined);
-
-        if (!target) return;
-        if (target.parentNode) target.parentNode.removeChild(target);
-        target = undefined;
-
-        $$invalidate('list', list);
-        target = target;
-      }
-
-      function handleWindowClick(event) {
-        if (!container) return;
-        const eventTarget = event.path && (event.path.length > 0) ? event.path[0] : event.target;
-        if (container.contains(eventTarget)) return;
-        $$invalidate('isFocused', isFocused = false);
-        $$invalidate('listOpen', listOpen = false);
-        $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
-        if (input) input.blur();
-      }
-
-      function handleClick() {
-        if (isDisabled) return;
-        $$invalidate('isFocused', isFocused = true);
-        $$invalidate('listOpen', listOpen = !listOpen);
-      }
-
-      function handleClear() {
-        $$invalidate('selectedValue', selectedValue = undefined);
-        $$invalidate('listOpen', listOpen = false);
-        dispatch('clear', selectedValue);
-        handleFocus();
-      }
-
-      async function loadList() {
-        await tick();
-        if (target && list) return;
-
-        const data = {
-          Item: Item$1,
-          filterText,
-          optionIdentifier,
-          noOptionsMessage,
-          hideEmptyState,
-          isVirtualList,
-          selectedValue,
-          isMulti,
-          getGroupHeaderLabel,
-          items: filteredItems,
-          itemHeight
-        };
-
-        if (getOptionLabel) {
-          data.getOptionLabel = getOptionLabel;
-        }
-
-        target = document.createElement('div');
-
-        Object.assign(target.style, {
-          position: 'absolute',
-          'z-index': 2,
-          'visibility': 'hidden'
-        });
-
-        $$invalidate('list', list);
-        target = target;
-        if (container) container.appendChild(target);
-
-        $$invalidate('list', list = new List({
-          target,
-          props: data
-        }));
-
-        list.$on('itemSelected', (event) => {
-          const { detail } = event;
-
-          if (detail) {
-            const item = Object.assign({}, detail);
-
-            if (isMulti) {
-              $$invalidate('selectedValue', selectedValue = selectedValue ? selectedValue.concat([item]) : [item]);
-            } else {
-              $$invalidate('selectedValue', selectedValue = item);
-            }
-
-            resetFilter();
-            $$invalidate('selectedValue', selectedValue), $$invalidate('optionIdentifier', optionIdentifier);
-
-            setTimeout(() => {
-              $$invalidate('listOpen', listOpen = false);
-              $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
-            });
-          }
-        });
-
-        list.$on('itemCreated', (event) => {
-          const { detail } = event;
-          if (isMulti) {
-            $$invalidate('selectedValue', selectedValue = selectedValue || []);
-            $$invalidate('selectedValue', selectedValue = [...selectedValue, createItem(detail)]);
-          } else {
-            $$invalidate('selectedValue', selectedValue = createItem(detail));
-          }
-
-          $$invalidate('filterText', filterText = '');
-          $$invalidate('listOpen', listOpen = false);
-          $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
-          resetFilter();
-        });
-        
-        list.$on('closeList', () => {
-          $$invalidate('listOpen', listOpen = false);
-        });
-      
-        $$invalidate('list', list),
-        target = target;
-        getPosition();
-      }
-
-      onMount(() => {
-        if (isFocused) input.focus();
-        if (listOpen) loadList();
-
-        if (items && items.length > 0) {
-          $$invalidate('originalItemsClone', originalItemsClone = JSON.stringify(items));
-        }
-
-        if (selectedValue) {
-          if (isMulti) {
-            $$invalidate('selectedValue', selectedValue = selectedValue.map(item => {
-              if (typeof item === 'string') {
-                return { value: item, label: item }
-              } else {
-                return item;
-              }
-            }));
-          }
-        }
-      });
-
-      onDestroy(() => {
-        removeList();
-      });
-
-    	const writable_props = ['container', 'input', 'Item', 'Selection', 'MultiSelection', 'isMulti', 'isDisabled', 'isCreatable', 'isFocused', 'selectedValue', 'filterText', 'placeholder', 'items', 'itemFilter', 'groupBy', 'groupFilter', 'isGroupHeaderSelectable', 'getGroupHeaderLabel', 'getOptionLabel', 'optionIdentifier', 'loadOptions', 'hasError', 'containerStyles', 'getSelectionLabel', 'createGroupHeaderItem', 'createItem', 'isSearchable', 'inputStyles', 'isClearable', 'isWaiting', 'listPlacement', 'listOpen', 'list', 'isVirtualList', 'loadOptionsInterval', 'noOptionsMessage', 'hideEmptyState', 'filteredItems', 'inputAttributes', 'listAutoWidth', 'itemHeight'];
-    	Object_1.keys($$props).forEach(key => {
-    		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Select> was created with unknown prop '${key}'`);
-    	});
-
-    	function input_1_input_handler() {
-    		filterText = this.value;
-    		$$invalidate('filterText', filterText);
-    	}
-
-    	function input_1_binding($$value) {
-    		binding_callbacks[$$value ? 'unshift' : 'push'](() => {
-    			$$invalidate('input', input = $$value);
-    		});
-    	}
-
-    	function input_1_input_handler_1() {
-    		filterText = this.value;
-    		$$invalidate('filterText', filterText);
-    	}
-
-    	function input_1_binding_1($$value) {
-    		binding_callbacks[$$value ? 'unshift' : 'push'](() => {
-    			$$invalidate('input', input = $$value);
-    		});
-    	}
-
-    	function div_binding($$value) {
-    		binding_callbacks[$$value ? 'unshift' : 'push'](() => {
-    			$$invalidate('container', container = $$value);
-    		});
-    	}
-
-    	$$self.$set = $$props => {
-    		if ('container' in $$props) $$invalidate('container', container = $$props.container);
-    		if ('input' in $$props) $$invalidate('input', input = $$props.input);
-    		if ('Item' in $$props) $$invalidate('Item', Item$1 = $$props.Item);
-    		if ('Selection' in $$props) $$invalidate('Selection', Selection = $$props.Selection);
-    		if ('MultiSelection' in $$props) $$invalidate('MultiSelection', MultiSelection$1 = $$props.MultiSelection);
-    		if ('isMulti' in $$props) $$invalidate('isMulti', isMulti = $$props.isMulti);
-    		if ('isDisabled' in $$props) $$invalidate('isDisabled', isDisabled = $$props.isDisabled);
-    		if ('isCreatable' in $$props) $$invalidate('isCreatable', isCreatable = $$props.isCreatable);
-    		if ('isFocused' in $$props) $$invalidate('isFocused', isFocused = $$props.isFocused);
-    		if ('selectedValue' in $$props) $$invalidate('selectedValue', selectedValue = $$props.selectedValue);
-    		if ('filterText' in $$props) $$invalidate('filterText', filterText = $$props.filterText);
-    		if ('placeholder' in $$props) $$invalidate('placeholder', placeholder = $$props.placeholder);
-    		if ('items' in $$props) $$invalidate('items', items = $$props.items);
-    		if ('itemFilter' in $$props) $$invalidate('itemFilter', itemFilter = $$props.itemFilter);
-    		if ('groupBy' in $$props) $$invalidate('groupBy', groupBy = $$props.groupBy);
-    		if ('groupFilter' in $$props) $$invalidate('groupFilter', groupFilter = $$props.groupFilter);
-    		if ('isGroupHeaderSelectable' in $$props) $$invalidate('isGroupHeaderSelectable', isGroupHeaderSelectable = $$props.isGroupHeaderSelectable);
-    		if ('getGroupHeaderLabel' in $$props) $$invalidate('getGroupHeaderLabel', getGroupHeaderLabel = $$props.getGroupHeaderLabel);
-    		if ('getOptionLabel' in $$props) $$invalidate('getOptionLabel', getOptionLabel = $$props.getOptionLabel);
-    		if ('optionIdentifier' in $$props) $$invalidate('optionIdentifier', optionIdentifier = $$props.optionIdentifier);
-    		if ('loadOptions' in $$props) $$invalidate('loadOptions', loadOptions = $$props.loadOptions);
-    		if ('hasError' in $$props) $$invalidate('hasError', hasError = $$props.hasError);
-    		if ('containerStyles' in $$props) $$invalidate('containerStyles', containerStyles = $$props.containerStyles);
-    		if ('getSelectionLabel' in $$props) $$invalidate('getSelectionLabel', getSelectionLabel = $$props.getSelectionLabel);
-    		if ('createGroupHeaderItem' in $$props) $$invalidate('createGroupHeaderItem', createGroupHeaderItem = $$props.createGroupHeaderItem);
-    		if ('createItem' in $$props) $$invalidate('createItem', createItem = $$props.createItem);
-    		if ('isSearchable' in $$props) $$invalidate('isSearchable', isSearchable = $$props.isSearchable);
-    		if ('inputStyles' in $$props) $$invalidate('inputStyles', inputStyles = $$props.inputStyles);
-    		if ('isClearable' in $$props) $$invalidate('isClearable', isClearable = $$props.isClearable);
-    		if ('isWaiting' in $$props) $$invalidate('isWaiting', isWaiting = $$props.isWaiting);
-    		if ('listPlacement' in $$props) $$invalidate('listPlacement', listPlacement = $$props.listPlacement);
-    		if ('listOpen' in $$props) $$invalidate('listOpen', listOpen = $$props.listOpen);
-    		if ('list' in $$props) $$invalidate('list', list = $$props.list);
-    		if ('isVirtualList' in $$props) $$invalidate('isVirtualList', isVirtualList = $$props.isVirtualList);
-    		if ('loadOptionsInterval' in $$props) $$invalidate('loadOptionsInterval', loadOptionsInterval = $$props.loadOptionsInterval);
-    		if ('noOptionsMessage' in $$props) $$invalidate('noOptionsMessage', noOptionsMessage = $$props.noOptionsMessage);
-    		if ('hideEmptyState' in $$props) $$invalidate('hideEmptyState', hideEmptyState = $$props.hideEmptyState);
-    		if ('filteredItems' in $$props) $$invalidate('filteredItems', filteredItems = $$props.filteredItems);
-    		if ('inputAttributes' in $$props) $$invalidate('inputAttributes', inputAttributes = $$props.inputAttributes);
-    		if ('listAutoWidth' in $$props) $$invalidate('listAutoWidth', listAutoWidth = $$props.listAutoWidth);
-    		if ('itemHeight' in $$props) $$invalidate('itemHeight', itemHeight = $$props.itemHeight);
-    	};
-
-    	$$self.$capture_state = () => {
-    		return { container, input, Item: Item$1, Selection, MultiSelection: MultiSelection$1, isMulti, isDisabled, isCreatable, isFocused, selectedValue, filterText, placeholder, items, itemFilter, groupBy, groupFilter, isGroupHeaderSelectable, getGroupHeaderLabel, getOptionLabel, optionIdentifier, loadOptions, hasError, containerStyles, getSelectionLabel, createGroupHeaderItem, createItem, isSearchable, inputStyles, isClearable, isWaiting, listPlacement, listOpen, list, isVirtualList, loadOptionsInterval, noOptionsMessage, hideEmptyState, filteredItems, inputAttributes, listAutoWidth, itemHeight, target, activeSelectedValue, _items, originalItemsClone, containerClasses, prev_selectedValue, prev_listOpen, prev_filterText, prev_isFocused, prev_filteredItems, _inputAttributes, disabled, showSelectedItem, placeholderText };
-    	};
-
-    	$$self.$inject_state = $$props => {
-    		if ('container' in $$props) $$invalidate('container', container = $$props.container);
-    		if ('input' in $$props) $$invalidate('input', input = $$props.input);
-    		if ('Item' in $$props) $$invalidate('Item', Item$1 = $$props.Item);
-    		if ('Selection' in $$props) $$invalidate('Selection', Selection = $$props.Selection);
-    		if ('MultiSelection' in $$props) $$invalidate('MultiSelection', MultiSelection$1 = $$props.MultiSelection);
-    		if ('isMulti' in $$props) $$invalidate('isMulti', isMulti = $$props.isMulti);
-    		if ('isDisabled' in $$props) $$invalidate('isDisabled', isDisabled = $$props.isDisabled);
-    		if ('isCreatable' in $$props) $$invalidate('isCreatable', isCreatable = $$props.isCreatable);
-    		if ('isFocused' in $$props) $$invalidate('isFocused', isFocused = $$props.isFocused);
-    		if ('selectedValue' in $$props) $$invalidate('selectedValue', selectedValue = $$props.selectedValue);
-    		if ('filterText' in $$props) $$invalidate('filterText', filterText = $$props.filterText);
-    		if ('placeholder' in $$props) $$invalidate('placeholder', placeholder = $$props.placeholder);
-    		if ('items' in $$props) $$invalidate('items', items = $$props.items);
-    		if ('itemFilter' in $$props) $$invalidate('itemFilter', itemFilter = $$props.itemFilter);
-    		if ('groupBy' in $$props) $$invalidate('groupBy', groupBy = $$props.groupBy);
-    		if ('groupFilter' in $$props) $$invalidate('groupFilter', groupFilter = $$props.groupFilter);
-    		if ('isGroupHeaderSelectable' in $$props) $$invalidate('isGroupHeaderSelectable', isGroupHeaderSelectable = $$props.isGroupHeaderSelectable);
-    		if ('getGroupHeaderLabel' in $$props) $$invalidate('getGroupHeaderLabel', getGroupHeaderLabel = $$props.getGroupHeaderLabel);
-    		if ('getOptionLabel' in $$props) $$invalidate('getOptionLabel', getOptionLabel = $$props.getOptionLabel);
-    		if ('optionIdentifier' in $$props) $$invalidate('optionIdentifier', optionIdentifier = $$props.optionIdentifier);
-    		if ('loadOptions' in $$props) $$invalidate('loadOptions', loadOptions = $$props.loadOptions);
-    		if ('hasError' in $$props) $$invalidate('hasError', hasError = $$props.hasError);
-    		if ('containerStyles' in $$props) $$invalidate('containerStyles', containerStyles = $$props.containerStyles);
-    		if ('getSelectionLabel' in $$props) $$invalidate('getSelectionLabel', getSelectionLabel = $$props.getSelectionLabel);
-    		if ('createGroupHeaderItem' in $$props) $$invalidate('createGroupHeaderItem', createGroupHeaderItem = $$props.createGroupHeaderItem);
-    		if ('createItem' in $$props) $$invalidate('createItem', createItem = $$props.createItem);
-    		if ('isSearchable' in $$props) $$invalidate('isSearchable', isSearchable = $$props.isSearchable);
-    		if ('inputStyles' in $$props) $$invalidate('inputStyles', inputStyles = $$props.inputStyles);
-    		if ('isClearable' in $$props) $$invalidate('isClearable', isClearable = $$props.isClearable);
-    		if ('isWaiting' in $$props) $$invalidate('isWaiting', isWaiting = $$props.isWaiting);
-    		if ('listPlacement' in $$props) $$invalidate('listPlacement', listPlacement = $$props.listPlacement);
-    		if ('listOpen' in $$props) $$invalidate('listOpen', listOpen = $$props.listOpen);
-    		if ('list' in $$props) $$invalidate('list', list = $$props.list);
-    		if ('isVirtualList' in $$props) $$invalidate('isVirtualList', isVirtualList = $$props.isVirtualList);
-    		if ('loadOptionsInterval' in $$props) $$invalidate('loadOptionsInterval', loadOptionsInterval = $$props.loadOptionsInterval);
-    		if ('noOptionsMessage' in $$props) $$invalidate('noOptionsMessage', noOptionsMessage = $$props.noOptionsMessage);
-    		if ('hideEmptyState' in $$props) $$invalidate('hideEmptyState', hideEmptyState = $$props.hideEmptyState);
-    		if ('filteredItems' in $$props) $$invalidate('filteredItems', filteredItems = $$props.filteredItems);
-    		if ('inputAttributes' in $$props) $$invalidate('inputAttributes', inputAttributes = $$props.inputAttributes);
-    		if ('listAutoWidth' in $$props) $$invalidate('listAutoWidth', listAutoWidth = $$props.listAutoWidth);
-    		if ('itemHeight' in $$props) $$invalidate('itemHeight', itemHeight = $$props.itemHeight);
-    		if ('target' in $$props) target = $$props.target;
-    		if ('activeSelectedValue' in $$props) $$invalidate('activeSelectedValue', activeSelectedValue = $$props.activeSelectedValue);
-    		if ('_items' in $$props) $$invalidate('_items', _items = $$props._items);
-    		if ('originalItemsClone' in $$props) $$invalidate('originalItemsClone', originalItemsClone = $$props.originalItemsClone);
-    		if ('containerClasses' in $$props) $$invalidate('containerClasses', containerClasses = $$props.containerClasses);
-    		if ('prev_selectedValue' in $$props) prev_selectedValue = $$props.prev_selectedValue;
-    		if ('prev_listOpen' in $$props) prev_listOpen = $$props.prev_listOpen;
-    		if ('prev_filterText' in $$props) prev_filterText = $$props.prev_filterText;
-    		if ('prev_isFocused' in $$props) prev_isFocused = $$props.prev_isFocused;
-    		if ('prev_filteredItems' in $$props) prev_filteredItems = $$props.prev_filteredItems;
-    		if ('_inputAttributes' in $$props) $$invalidate('_inputAttributes', _inputAttributes = $$props._inputAttributes);
-    		if ('disabled' in $$props) disabled = $$props.disabled;
-    		if ('showSelectedItem' in $$props) $$invalidate('showSelectedItem', showSelectedItem = $$props.showSelectedItem);
-    		if ('placeholderText' in $$props) $$invalidate('placeholderText', placeholderText = $$props.placeholderText);
-    	};
-
-    	let disabled, showSelectedItem, placeholderText;
-
-    	$$self.$$.update = ($$dirty = { isDisabled: 1, isMulti: 1, isFocused: 1, selectedValue: 1, optionIdentifier: 1, filterText: 1, placeholder: 1, inputAttributes: 1, isSearchable: 1, items: 1, loadOptions: 1, originalItemsClone: 1, itemFilter: 1, getOptionLabel: 1, groupBy: 1, createGroupHeaderItem: 1, isGroupHeaderSelectable: 1, groupFilter: 1 }) => {
-    		if ($$dirty.isDisabled) { disabled = isDisabled; }
-    		if ($$dirty.isMulti || $$dirty.isDisabled || $$dirty.isFocused) { {
-            $$invalidate('containerClasses', containerClasses = `selectContainer`);
-            $$invalidate('containerClasses', containerClasses += isMulti ? ' multiSelect' : '');
-            $$invalidate('containerClasses', containerClasses += isDisabled ? ' disabled' : '');
-            $$invalidate('containerClasses', containerClasses += isFocused ? ' focused' : '');
-          } }
-    		if ($$dirty.selectedValue || $$dirty.optionIdentifier) { {
-            if (typeof selectedValue === 'string') {
-              $$invalidate('selectedValue', selectedValue = { [optionIdentifier]: selectedValue, label: selectedValue });
-            }
-          } }
-    		if ($$dirty.selectedValue || $$dirty.filterText) { $$invalidate('showSelectedItem', showSelectedItem = selectedValue && filterText.length === 0); }
-    		if ($$dirty.selectedValue || $$dirty.placeholder) { $$invalidate('placeholderText', placeholderText = selectedValue ? '' : placeholder); }
-    		if ($$dirty.inputAttributes || $$dirty.isSearchable) { {
-            $$invalidate('_inputAttributes', _inputAttributes = Object.assign(inputAttributes, {
-              autocomplete: 'off',
-              autocorrect: 'off',
-              spellcheck: false
-            }));
-        
-            if (!isSearchable) {
-              $$invalidate('_inputAttributes', _inputAttributes.readonly = true, _inputAttributes);
-            }
-          } }
-    		if ($$dirty.items || $$dirty.loadOptions || $$dirty.filterText || $$dirty.originalItemsClone || $$dirty.isMulti || $$dirty.selectedValue || $$dirty.optionIdentifier || $$dirty.itemFilter || $$dirty.getOptionLabel || $$dirty.groupBy || $$dirty.createGroupHeaderItem || $$dirty.isGroupHeaderSelectable || $$dirty.groupFilter) { {
-            let _filteredItems;
-            let _items = items;
-        
-            if (items && items.length > 0 && typeof items[0] !== 'object') {
-              _items = items.map((item, index) => {
-                return {
-                  index,
-                  value: item,
-                  label: item
-                }
-              });
-            }
-        
-            if (loadOptions && filterText.length === 0 && originalItemsClone) {
-              _filteredItems = JSON.parse(originalItemsClone);
-              _items = JSON.parse(originalItemsClone);
-            } else {
-              _filteredItems = loadOptions ? filterText.length === 0 ? [] : _items : _items.filter(item => {
-        
-                let keepItem = true;
-        
-                if (isMulti && selectedValue) {
-                  keepItem = !selectedValue.find((value) => {
-                    return value[optionIdentifier] === item[optionIdentifier]
-                  });
-                }
-        
-                if (!keepItem) return false;
-                if (filterText.length < 1) return true;
-                return itemFilter(getOptionLabel(item, filterText), filterText, item);
-              });
-            }
-        
-            if (groupBy) {
-              const groupValues = [];
-              const groups = {};
-        
-              _filteredItems.forEach((item) => {
-                const groupValue = groupBy(item);
-        
-                if (!groupValues.includes(groupValue)) {
-                  groupValues.push(groupValue);
-                  groups[groupValue] = [];
-        
-                  if(groupValue) {
-                    groups[groupValue].push(Object.assign(
-                      createGroupHeaderItem(groupValue, item), 
-                      { 
-                        id: groupValue, 
-                        isGroupHeader: true, 
-                        isSelectable: isGroupHeaderSelectable
-                      }
-                    ));
-                  }
-                }
-                
-                groups[groupValue].push(Object.assign({ isGroupItem: !!groupValue }, item));
-              });
-        
-              const sortedGroupedItems = [];
-        
-              groupFilter(groupValues).forEach((groupValue) => {
-                sortedGroupedItems.push(...groups[groupValue]);
-              });
-        
-              $$invalidate('filteredItems', filteredItems = sortedGroupedItems);
-            } else {
-              $$invalidate('filteredItems', filteredItems = _filteredItems);
-            }
-          } }
-    	};
-
-    	return {
-    		container,
-    		input,
-    		Item: Item$1,
-    		Selection,
-    		MultiSelection: MultiSelection$1,
-    		isMulti,
-    		isDisabled,
-    		isCreatable,
-    		isFocused,
-    		selectedValue,
-    		filterText,
-    		placeholder,
-    		items,
-    		itemFilter,
-    		groupBy,
-    		groupFilter,
-    		isGroupHeaderSelectable,
-    		getGroupHeaderLabel,
-    		getOptionLabel,
-    		optionIdentifier,
-    		loadOptions,
-    		hasError,
-    		containerStyles,
-    		getSelectionLabel,
-    		createGroupHeaderItem,
-    		createItem,
-    		isSearchable,
-    		inputStyles,
-    		isClearable,
-    		isWaiting,
-    		listPlacement,
-    		listOpen,
-    		list,
-    		isVirtualList,
-    		loadOptionsInterval,
-    		noOptionsMessage,
-    		hideEmptyState,
-    		filteredItems,
-    		inputAttributes,
-    		listAutoWidth,
-    		itemHeight,
-    		activeSelectedValue,
-    		containerClasses,
-    		_inputAttributes,
-    		handleMultiItemClear,
-    		getPosition,
-    		handleKeyDown,
-    		handleFocus,
-    		handleWindowClick,
-    		handleClick,
-    		handleClear,
-    		showSelectedItem,
-    		placeholderText,
-    		input_1_input_handler,
-    		input_1_binding,
-    		input_1_input_handler_1,
-    		input_1_binding_1,
-    		div_binding
-    	};
-    }
-
-    class Select extends SvelteComponentDev {
-    	constructor(options) {
-    		super(options);
-    		init(this, options, instance$6, create_fragment$6, safe_not_equal, ["container", "input", "Item", "Selection", "MultiSelection", "isMulti", "isDisabled", "isCreatable", "isFocused", "selectedValue", "filterText", "placeholder", "items", "itemFilter", "groupBy", "groupFilter", "isGroupHeaderSelectable", "getGroupHeaderLabel", "getOptionLabel", "optionIdentifier", "loadOptions", "hasError", "containerStyles", "getSelectionLabel", "createGroupHeaderItem", "createItem", "isSearchable", "inputStyles", "isClearable", "isWaiting", "listPlacement", "listOpen", "list", "isVirtualList", "loadOptionsInterval", "noOptionsMessage", "hideEmptyState", "filteredItems", "inputAttributes", "listAutoWidth", "itemHeight", "handleClear"]);
-    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "Select", options, id: create_fragment$6.name });
-
-    		const { ctx } = this.$$;
-    		const props = options.props || {};
-    		if (ctx.handleClear === undefined && !('handleClear' in props)) {
-    			console.warn("<Select> was created without expected prop 'handleClear'");
-    		}
-    	}
-
-    	get container() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set container(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get input() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set input(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get Item() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set Item(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get Selection() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set Selection(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get MultiSelection() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set MultiSelection(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isMulti() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isMulti(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isDisabled() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isDisabled(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isCreatable() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isCreatable(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isFocused() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isFocused(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get selectedValue() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set selectedValue(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get filterText() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set filterText(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get placeholder() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set placeholder(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get items() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set items(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get itemFilter() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set itemFilter(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get groupBy() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set groupBy(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get groupFilter() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set groupFilter(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isGroupHeaderSelectable() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isGroupHeaderSelectable(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get getGroupHeaderLabel() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set getGroupHeaderLabel(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get getOptionLabel() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set getOptionLabel(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get optionIdentifier() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set optionIdentifier(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get loadOptions() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set loadOptions(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get hasError() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set hasError(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get containerStyles() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set containerStyles(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get getSelectionLabel() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set getSelectionLabel(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get createGroupHeaderItem() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set createGroupHeaderItem(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get createItem() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set createItem(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isSearchable() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isSearchable(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get inputStyles() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set inputStyles(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isClearable() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isClearable(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isWaiting() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isWaiting(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get listPlacement() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set listPlacement(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get listOpen() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set listOpen(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get list() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set list(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get isVirtualList() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set isVirtualList(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get loadOptionsInterval() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set loadOptionsInterval(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get noOptionsMessage() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set noOptionsMessage(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get hideEmptyState() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set hideEmptyState(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get filteredItems() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set filteredItems(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get inputAttributes() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set inputAttributes(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get listAutoWidth() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set listAutoWidth(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get itemHeight() {
-    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	set itemHeight(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-
-    	get handleClear() {
-    		return this.$$.ctx.handleClear;
-    	}
-
-    	set handleClear(value) {
-    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
-    	}
-    }
-
     var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
     function unwrapExports (x) {
@@ -9729,9 +5652,9 @@
 
     /* src/Checkbox.svelte generated by Svelte v3.12.1 */
 
-    const file$7 = "src/Checkbox.svelte";
+    const file$1 = "src/Checkbox.svelte";
 
-    function create_fragment$7(ctx) {
+    function create_fragment$1(ctx) {
     	var div1, div0, t_value = ctx.checked?"✓":"" + "", t, dispose;
 
     	const block = {
@@ -9745,7 +5668,7 @@
     			set_style(div0, "top", "-1px");
     			set_style(div0, "position", "absolute");
     			set_style(div0, "color", "white");
-    			add_location(div0, file$7, 19, 6, 593);
+    			add_location(div0, file$1, 19, 6, 593);
     			set_style(div1, "position", "absolute");
     			set_style(div1, "left", "-2px");
     			set_style(div1, "top", "3px");
@@ -9757,7 +5680,7 @@
     			set_style(div1, "border", "2px solid " + (ctx.checked ? 'rgba(255,255,255,0)':ctx.color));
     			set_style(div1, "box-shadow", "inset 1px 1px 3px rgba(0, 0, 0, 0.1)");
     			set_style(div1, "user-select", "none");
-    			add_location(div1, file$7, 6, 0, 101);
+    			add_location(div1, file$1, 6, 0, 101);
     			dispose = listen_dev(div1, "click", ctx.click_handler);
     		},
 
@@ -9793,11 +5716,11 @@
     			dispose();
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$7.name, type: "component", source: "", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$1.name, type: "component", source: "", ctx });
     	return block;
     }
 
-    function instance$7($$self, $$props, $$invalidate) {
+    function instance$1($$self, $$props, $$invalidate) {
     	let { color, checked = false, callback = () => {} } = $$props;
 
     	const writable_props = ['color', 'checked', 'callback'];
@@ -9829,8 +5752,8 @@
     class Checkbox extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$7, create_fragment$7, safe_not_equal, ["color", "checked", "callback"]);
-    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "Checkbox", options, id: create_fragment$7.name });
+    		init(this, options, instance$1, create_fragment$1, safe_not_equal, ["color", "checked", "callback"]);
+    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "Checkbox", options, id: create_fragment$1.name });
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
@@ -9866,9 +5789,9 @@
 
     /* src/Arrow.svelte generated by Svelte v3.12.1 */
 
-    const file$8 = "src/Arrow.svelte";
+    const file$2 = "src/Arrow.svelte";
 
-    function create_fragment$8(ctx) {
+    function create_fragment$2(ctx) {
     	var svg0, defs0, marker0, path, defs1, marker1, circle, t, div, svg1, line, line_y__value, line_marker_end_value;
 
     	const block = {
@@ -9886,7 +5809,7 @@
     			line = svg_element("line");
     			attr_dev(path, "d", "M2,2 L10,6 L2,10 L6,6 L2,2");
     			set_style(path, "fill", "grey");
-    			add_location(path, file$8, 17, 6, 327);
+    			add_location(path, file$2, 17, 6, 327);
     			attr_dev(marker0, "id", "arrow");
     			attr_dev(marker0, "markerUnits", "strokeWidth");
     			attr_dev(marker0, "markerWidth", "10");
@@ -9895,13 +5818,13 @@
     			attr_dev(marker0, "refX", "6");
     			attr_dev(marker0, "refY", "6");
     			attr_dev(marker0, "orient", "auto");
-    			add_location(marker0, file$8, 8, 4, 140);
-    			add_location(defs0, file$8, 7, 2, 129);
+    			add_location(marker0, file$2, 8, 4, 140);
+    			add_location(defs0, file$2, 7, 2, 129);
     			attr_dev(circle, "r", "3");
     			attr_dev(circle, "cx", "3");
     			attr_dev(circle, "cy", "6");
     			set_style(circle, "fill", "grey");
-    			add_location(circle, file$8, 31, 6, 618);
+    			add_location(circle, file$2, 31, 6, 618);
     			attr_dev(marker1, "id", "circle");
     			attr_dev(marker1, "markerUnits", "strokeWidth");
     			attr_dev(marker1, "markerWidth", "10");
@@ -9910,11 +5833,11 @@
     			attr_dev(marker1, "refX", "6");
     			attr_dev(marker1, "refY", "6");
     			attr_dev(marker1, "orient", "auto");
-    			add_location(marker1, file$8, 22, 4, 430);
-    			add_location(defs1, file$8, 21, 2, 419);
+    			add_location(marker1, file$2, 22, 4, 430);
+    			add_location(defs1, file$2, 21, 2, 419);
     			attr_dev(svg0, "width", "0");
     			attr_dev(svg0, "height", "0");
-    			add_location(svg0, file$8, 6, 0, 100);
+    			add_location(svg0, file$2, 6, 0, 100);
     			attr_dev(line, "x1", "8");
     			attr_dev(line, "y1", "0");
     			attr_dev(line, "x2", "8");
@@ -9923,8 +5846,8 @@
     			attr_dev(line, "stroke-width", "1.5");
     			attr_dev(line, "marker-end", line_marker_end_value = "url(" + ctx.arrowhead + ")");
     			attr_dev(line, "stroke-dasharray", ctx.dasharray);
-    			add_location(line, file$8, 39, 2, 892);
-    			add_location(svg1, file$8, 38, 0, 884);
+    			add_location(line, file$2, 39, 2, 892);
+    			add_location(svg1, file$2, 38, 0, 884);
     			set_style(div, "position", "absolute");
     			set_style(div, "left", "-1px");
     			set_style(div, "top", "4px");
@@ -9935,7 +5858,7 @@
     			set_style(div, "top", "25px");
     			set_style(div, "opacity", "0.8");
     			set_style(div, "pointer-events", "None");
-    			add_location(div, file$8, 37, 0, 707);
+    			add_location(div, file$2, 37, 0, 707);
     		},
 
     		l: function claim(nodes) {
@@ -9985,11 +5908,11 @@
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$8.name, type: "component", source: "", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$2.name, type: "component", source: "", ctx });
     	return block;
     }
 
-    function instance$8($$self, $$props, $$invalidate) {
+    function instance$2($$self, $$props, $$invalidate) {
     	let { height, arrowhead = "#arrow", dasharray = "0 0" } = $$props;
 
     	const writable_props = ['height', 'arrowhead', 'dasharray'];
@@ -10019,8 +5942,8 @@
     class Arrow extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$8, create_fragment$8, safe_not_equal, ["height", "arrowhead", "dasharray"]);
-    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "Arrow", options, id: create_fragment$8.name });
+    		init(this, options, instance$2, create_fragment$2, safe_not_equal, ["height", "arrowhead", "dasharray"]);
+    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "Arrow", options, id: create_fragment$2.name });
 
     		const { ctx } = this.$$;
     		const props = options.props || {};
@@ -27498,11 +23421,6 @@
     		//	province = "United Kngdom";
     		//    }
                     //}
-
-    		//var myCountry = checkCountryListed(country, province) ? country : "US";
-    		//var myProvince = checkCountryListed(country, province) ? province : "All";
-
-    		//console.log("myProvince", myProvince);
     		
     		if (line["Country/Region"] == country) {
     		    //console.log(d); // this prints the entire country information for the given caseType
@@ -27616,23 +23534,15 @@
     }
 
     var countryParameters = {};
-    countryParameters["Argentina"] = {"All" : createDictionary(17.605, 30, 4, "ar")};
-    countryParameters["Brazil"] = {"All" : createDictionary(19.15, 28, 5, "br")};
-    countryParameters["Czechia"] = {"All" : createDictionary(16.18, 29, 3.7, "cz")};
-    countryParameters["China"] = {"Beijing" : createDictionary(16.885, 0, 3, "cn"),
-    			      "Hubei" : createDictionary(17.884, 0, 3, "cn")
-                                  };
-    countryParameters["France"] = {"All" : createDictionary(18.018, 20, 5, "fr")};
     countryParameters["Germany"] = {"All" : createDictionary(18.23, 20, 4.6, "de")};
+    countryParameters["Czechia"] = {"All" : createDictionary(16.18, 29, 3.7, "cz")};
+    countryParameters["Brazil"] = {"All" : createDictionary(19.15, 28, 5, "br")};
+    countryParameters["US"] = {"All" : createDictionary(19.6, 18, 4.88, "us")};
     countryParameters["Iran"] = {"All" : createDictionary(18.21, 18, 5, "ir")};
     countryParameters["Italy"] = {"All" : createDictionary(17.917, 0, 4, "it")};
-    countryParameters["Pakistan"] = {"All" : createDictionary(19.098, 35, 4, "pk")};
-    countryParameters["Spain"] = {"All" : createDictionary(17.664, 20, 5, "es")};
-    countryParameters["Sweden"] = {"All" : createDictionary(16.130, 30, 5, "se")};
-    countryParameters["Switzerland"] = {"All" : createDictionary(15.963, 30, 5, "ch")};
-    countryParameters["Turkey"] = {"All" : createDictionary(18.2076, 30, 5, "tr")};
     countryParameters["United Kingdom"] = {"All" : createDictionary(18.01, 20, 5, "gb")};
-    countryParameters["US"] = {"All" : createDictionary(19.6, 18, 4.88, "us")};
+    countryParameters["France"] = {"All" : createDictionary(18.018, 20, 5, "fr")};
+    countryParameters["China"] = {"Hubei" : createDictionary(17.884, 0, 3, "cn")};
 
 
     //countryParameters["US"] = {"All" : createDictionary(19.6, 28, 5)};
@@ -27644,14 +23554,8 @@
         return outbreak.toLocaleDateString()
     }
 
-    function getCountryParameters(country, province, parameter) {	
-        if (checkCountryListed(country)) {
-    	console.log("Country Here: ", country);
-    	console.log("Province Here: ", province);
-    	return countryParameters[country][province ? province : "All"][parameter]
-        } else {
-    	return None
-        }
+    function getCountryParameters(country, province, parameter) {
+        return countryParameters[country][province ? province : "All"][parameter] 
     }
 
     function checkCountryListed(country, province) {
@@ -27660,7 +23564,7 @@
 
     /* src/App.svelte generated by Svelte v3.12.1 */
 
-    const file$9 = "src/App.svelte";
+    const file$3 = "src/App.svelte";
 
     // (1:0) <script>      import { scaleLinear }
     function create_catch_block_2(ctx) {
@@ -27676,7 +23580,7 @@
     	return block;
     }
 
-    // (839:33)        <div style="position:relative; top:60px; left: 10px">     <Chart bind:checked={checked}
+    // (781:33)        <div style="position:relative; top:60px; left: 10px">     <Chart bind:checked={checked}
     function create_then_block_2(ctx) {
     	var div, updating_checked, updating_active, current;
 
@@ -27732,7 +23636,7 @@
     			set_style(div, "position", "relative");
     			set_style(div, "top", "60px");
     			set_style(div, "left", "10px");
-    			add_location(div, file$9, 841, 4, 29937);
+    			add_location(div, file$3, 783, 4, 28372);
     		},
 
     		m: function mount(target, anchor) {
@@ -27790,7 +23694,7 @@
     			destroy_component(chart);
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_then_block_2.name, type: "then", source: "(839:33)        <div style=\"position:relative; top:60px; left: 10px\">     <Chart bind:checked={checked}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_then_block_2.name, type: "then", source: "(781:33)        <div style=\"position:relative; top:60px; left: 10px\">     <Chart bind:checked={checked}", ctx });
     	return block;
     }
 
@@ -27808,8 +23712,8 @@
     	return block;
     }
 
-    // (912:8) {#if xScaleTime(InterventionTime) >= 100}
-    function create_if_block_1$3(ctx) {
+    // (854:8) {#if xScaleTime(InterventionTime) >= 100}
+    function create_if_block_1$1(ctx) {
     	var div, span, t, html_tag, raw_value = math_inline("\\mathcal{R}_0=" + (ctx.R0).toFixed(2) ) + "";
 
     	const block = {
@@ -27819,13 +23723,13 @@
     			t = text("⟵ ");
     			html_tag = new HtmlTag(raw_value, null);
     			set_style(span, "font-size", "13px");
-    			add_location(span, file$9, 913, 10, 32566);
+    			add_location(span, file$3, 855, 10, 31001);
     			set_style(div, "position", "absolute");
     			set_style(div, "opacity", "0.5");
     			set_style(div, "top", "-2px");
     			set_style(div, "left", "-97px");
     			set_style(div, "width", "120px");
-    			add_location(div, file$9, 912, 10, 32474);
+    			add_location(div, file$3, 854, 10, 30909);
     		},
 
     		m: function mount(target, anchor) {
@@ -27847,27 +23751,29 @@
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_1$3.name, type: "if", source: "(912:8) {#if xScaleTime(InterventionTime) >= 100}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_1$1.name, type: "if", source: "(854:8) {#if xScaleTime(InterventionTime) >= 100}", ctx });
     	return block;
     }
 
-    // (989:34) {#if checkCountryListed(country, province)}
-    function create_if_block$4(ctx) {
-    	var img, img_src_value;
+    // (922:2) {#if checkCountryListed(country, province)}
+    function create_if_block$1(ctx) {
+    	var img, img_src_value, t;
 
     	const block = {
     		c: function create() {
     			img = element("img");
+    			t = space();
     			attr_dev(img, "src", img_src_value = "./svg/" + getCountryParameters(ctx.country, ctx.province, "flag") + ".svg");
     			attr_dev(img, "height", "20");
     			attr_dev(img, "alt", "Flag");
     			set_style(img, "margin-bottom", "-3px");
     			set_style(img, "border", "1px solid #ccc");
-    			add_location(img, file$9, 988, 77, 36089);
+    			add_location(img, file$3, 921, 45, 34355);
     		},
 
     		m: function mount(target, anchor) {
     			insert_dev(target, img, anchor);
+    			insert_dev(target, t, anchor);
     		},
 
     		p: function update(changed, ctx) {
@@ -27879,10 +23785,11 @@
     		d: function destroy(detaching) {
     			if (detaching) {
     				detach_dev(img);
+    				detach_dev(t);
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block$4.name, type: "if", source: "(989:34) {#if checkCountryListed(country, province)}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block$1.name, type: "if", source: "(922:2) {#if checkCountryListed(country, province)}", ctx });
     	return block;
     }
 
@@ -27898,7 +23805,7 @@
     	return block;
     }
 
-    // (992:35)      {data}
+    // (926:35)      {data}
     function create_then_block_1(ctx) {
     	var t_value = ctx.data + "", t;
 
@@ -27923,7 +23830,7 @@
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_then_block_1.name, type: "then", source: "(992:35)      {data}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_then_block_1.name, type: "then", source: "(926:35)      {data}", ctx });
     	return block;
     }
 
@@ -27951,7 +23858,7 @@
     	return block;
     }
 
-    // (998:36)      {data}
+    // (932:36)      {data}
     function create_then_block$1(ctx) {
     	var t_value = ctx.data + "", t;
 
@@ -27976,7 +23883,7 @@
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_then_block$1.name, type: "then", source: "(998:36)      {data}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_then_block$1.name, type: "then", source: "(932:36)      {data}", ctx });
     	return block;
     }
 
@@ -27992,8 +23899,8 @@
     	return block;
     }
 
-    function create_fragment$9(ctx) {
-    	var link, t0, h2, t2, div92, div50, div49, div0, b0, br0, t4, t5_value = ctx.Math.round(ctx.indexToTime(ctx.active_)) + "", t5, t6, div7, span0, t7, t8, div5, div1, t10, div4, div2, span1, t12, i0, t13_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][0])) + "", t13, t14, t15_value = (100*ctx.Iters[ctx.active_][0]).toFixed(2) + "", t15, t16, t17, div3, span2, t19, i1, t20_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[0])) + "", t20, t21, t22, div6, t24, div14, updating_checked, t25, t26, div12, div8, t28, div11, div9, span3, t30, i2, t31_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][1])) + "", t31, t32, t33_value = (100*ctx.Iters[ctx.active_][1]).toFixed(2) + "", t33, t34, t35, div10, span4, t37, i3, t38_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[1])) + "", t38, t39, t40, div13, t42, div21, updating_checked_1, t43, t44, div19, div15, t46, div18, div16, span5, t48, i4, t49_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][2])) + "", t49, t50, t51_value = (100*ctx.Iters[ctx.active_][2]).toFixed(2) + "", t51, t52, t53, div17, span6, t55, i5, t56_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[2])) + "", t56, t57, t58, div20, t59, i6, t61, t62, div28, t63, t64, div26, div22, t66, div25, div23, span7, t68, i7, t69_value = formatNumber$1(ctx.Math.round(ctx.N* (1-ctx.Iters[ctx.active_][0]-ctx.Iters[ctx.active_][1]-ctx.Iters[ctx.active_][2])+ctx.I0 )) + "", t69, t70, t71_value = ((100*(1-ctx.Iters[ctx.active_][0]-ctx.Iters[ctx.active_][1]-ctx.Iters[ctx.active_][2]-ctx.I0/ctx.N))).toFixed(2) + "", t71, t72, t73, div24, span8, t75, i8, t76_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.get_d(ctx.active_)[3]+ctx.get_d(ctx.active_)[4]+ctx.get_d(ctx.active_)[5]+ctx.get_d(ctx.active_)[6]+ctx.get_d(ctx.active_)[7]) )) + "", t76, t77, t78, div27, t80, div34, updating_checked_2, t81, t82, div32, div29, t84, div31, div30, span9, t86, i9, t87_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.Iters[ctx.active_][7]+ctx.Iters[ctx.active_][8]) )) + "", t87, t88, t89_value = (100*(ctx.Iters[ctx.active_][7]+ctx.Iters[ctx.active_][8])).toFixed(2) + "", t89, t90, t91, div33, t93, div41, t94, updating_checked_3, t95, div39, div35, t97, div37, div36, span10, t99, i10, t100_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.Iters[ctx.active_][5]+ctx.Iters[ctx.active_][6]) )) + "", t100, t101, t102_value = (100*(ctx.Iters[ctx.active_][5]+ctx.Iters[ctx.active_][6])).toFixed(2) + "", t102, t103, t104, div38, span11, t106, i11, t107_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.get_d(ctx.active_)[5]+ctx.get_d(ctx.active_)[6]))) + "", t107, t108, t109, div40, t111, div48, t112, updating_checked_4, t113, div46, div42, t115, div45, div43, span12, t117, i12, t118_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][9])) + "", t118, t119, t120_value = (100*ctx.Iters[ctx.active_][9]).toFixed(2) + "", t120, t121, t122, div44, span13, t124, i13, t125_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[9])) + "", t125, t126, t127, div47, t129, div91, promise, t130, div51, t131, div52, t132, div60, div59, div53, span14, raw0_value = math_inline("\\mathcal{R}_t=" + (ctx.R0*ctx.InterventionAmt).toFixed(2) ) + "", t133, t134, show_if_1 = ctx.xScaleTime(ctx.InterventionTime) >= 100, t135, div57, div54, t136, t137_value = format("d")(ctx.InterventionTime) + "", t137, t138, span15, div55, t140, div56, svg, g1, g0, path, t141, div58, t142, div68, div67, div66, div65, div62, div61, t143, br1, t144, div64, div63, t145_value = (ctx.InterventionAmt).toFixed(2) + "", t145, t146, input0, t147, div82, div81, div69, updating_selectedValue, t148, div70, show_if = checkCountryListed(ctx.country, ctx.province), t149, t150_value = format(",")(ctx.Math.round(ctx.N)) + "", t150, t151, div71, t152, promise_1, t153, div72, t154, promise_2, t155, div73, t157, div77, div74, button0, t159, div75, button1, t161, div76, button2, t163, div78, t165, div79, t166, t167_value = format(",")(ctx.Math.round(ctx.Math.max(...ctx.total_infected))) + "", t167, t168, div80, t169, t170_value = format(",")(ctx.Math.round(ctx.totalDeaths)) + "", t170, t171, div85, div84, updating_checked_5, div83, t173, div90, div87, updating_checked_6, t174, div86, t176, div89, updating_checked_7, div88, t178, div134, div96, div93, t180, div94, t181, div95, t183, div133, div102, div97, t185, div98, t186, t187, t188, br2, t189, div99, t190_value = getDateFromDayZero(ctx.dayZero) + "", t190, t191, input1, t192, div100, t193, br3, t194, div101, t195, t196, input2, t197, div107, div105, div103, t198, html_tag, raw1_value = math_inline("\\mathcal{R}_0") + "", t199, div104, t200, br4, t201, div106, t202, t203, input3, t204, div113, div108, t206, div109, t207, html_tag_1, raw2_value = math_inline("T_{\\text{inc}}") + "", t208, br5, t209, div110, t210_value = (ctx.D_incbation).toFixed(2) + "", t210, t211, t212, input4, t213, div111, t214, html_tag_2, raw3_value = math_inline("T_{\\text{inf}}") + "", t215, br6, t216, div112, t217, t218, t219, input5, t220, div114, t221, div120, div115, t223, div116, t224, br7, t225, div117, t226_value = (ctx.CFR*100).toFixed(2) + "", t226, t227, t228, input6, t229, div118, t230, br8, t231, div119, t232, t233, t234, input7, input7_min_value, t235, div126, div121, t237, div122, t238, br9, t239, div123, t240, t241, t242, input8, t243, div124, t244, br10, t245, div125, t246, t247, t248, input9, t249, div132, div127, t251, div128, t252, br11, t253, div129, t254_value = (ctx.P_SEVERE*100).toFixed(2) + "", t254, t255, t256, input10, t257, div130, t258, br12, t259, div131, t260, t261, t262, input11, t263, div135, t264, p0, b1, br13, t266, a0, t268, a1, t270, p1, b2, br14, t272, i14, t274, t275, p2, b3, br15, t277, t278, p3, t279, italic0, t281, html_tag_3, raw4_value = math_inline("R_{0}") + "", t282, t283, p4, t284, italic1, t286, html_tag_4, raw5_value = math_inline("R_{0}") + "", t287, t288, p5, t290, p6, b4, br16, t292, t293, p7, t295, p8, b5, br17, t297, p9, t298, a2, t300, a3, t302, t303, p10, t305, p11, t306, b6, a4, t308, t309, b7, t311, span16, b8, t313, span17, b9, t315, span18, b10, t317, a5, t319, a6, t321, span19, t322, t323, p12, t324, t325_value = ctx.Math.round(ctx.indexToTime(ctx.active_)) + "", t325, t326, a7, t328, input12, t329, t330_value = ((1-(ctx.Math.pow(1 - (ctx.Iters[ctx.active_][2])*(0.45/100), ctx.p_num_ind)))*100).toFixed(5) + "", t330, t331, a8, t333, t334, p13, t336, div136, table, tr0, th0, t337, th1, t339, th2, t340, br18, t341, html_tag_5, raw7_value = math_inline("\\mathcal{R}_0") + "", t342, th3, t343, br19, t344, html_tag_6, raw8_value = math_inline("T_{\\text{inc}}") + "", t345, t346, th4, t347, br20, t348, html_tag_7, raw9_value = math_inline("T_{\\text{inf}}") + "", t349, t350, tr1, td0, a9, t352, td1, t354, td2, t356, td3, t358, td4, t360, tr2, td5, a10, t362, td6, t364, td7, t366, td8, t368, td9, t370, tr3, td10, a11, t372, td11, t374, td12, t376, td13, t378, td14, t380, tr4, td15, a12, t382, td16, t384, td17, t386, td18, t387, td19, t388, tr5, td20, a13, t390, td21, t392, td22, t394, td23, t396, td24, t397, tr6, td25, a14, t399, td26, t401, td27, t403, td28, t405, td29, t407, tr7, td30, a15, t409, td31, t411, td32, t413, td33, t415, td34, t417, tr8, td35, a16, t419, td36, t421, td37, t422, td38, t424, td39, t425, tr9, td40, a17, t427, td41, t429, td42, t431, td43, t432, td44, t433, tr10, td45, a18, t435, td46, t437, td47, t438, td48, t440, td49, t442, td50, t443, tr11, td51, a19, t445, td52, t447, td53, t449, td54, t450, td55, t451, p14, t452, a20, t454, a21, t456, t457, p15, t458, a22, t460, a23, t462, a24, t464, t465, p16, b11, br21, t467, html_tag_8, raw10_value = math_inline("I,R") + "", t468, i15, t470, i16, t472, i17, t474, t475, p17, b12, br22, t477, a25, t479, a26, t481, a27, t483, a28, t485, t486, div139, div138, div137, t488, form, textarea, current, dispose;
+    function create_fragment$3(ctx) {
+    	var link, t0, h2, t2, div92, div50, div49, div0, b0, br0, t4, t5_value = ctx.Math.round(ctx.indexToTime(ctx.active_)) + "", t5, t6, div7, span0, t7, t8, div5, div1, t10, div4, div2, span1, t12, i0, t13_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][0])) + "", t13, t14, t15_value = (100*ctx.Iters[ctx.active_][0]).toFixed(2) + "", t15, t16, t17, div3, span2, t19, i1, t20_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[0])) + "", t20, t21, t22, div6, t24, div14, updating_checked, t25, t26, div12, div8, t28, div11, div9, span3, t30, i2, t31_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][1])) + "", t31, t32, t33_value = (100*ctx.Iters[ctx.active_][1]).toFixed(2) + "", t33, t34, t35, div10, span4, t37, i3, t38_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[1])) + "", t38, t39, t40, div13, t42, div21, updating_checked_1, t43, t44, div19, div15, t46, div18, div16, span5, t48, i4, t49_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][2])) + "", t49, t50, t51_value = (100*ctx.Iters[ctx.active_][2]).toFixed(2) + "", t51, t52, t53, div17, span6, t55, i5, t56_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[2])) + "", t56, t57, t58, div20, t59, i6, t61, t62, div28, t63, t64, div26, div22, t66, div25, div23, span7, t68, i7, t69_value = formatNumber$1(ctx.Math.round(ctx.N* (1-ctx.Iters[ctx.active_][0]-ctx.Iters[ctx.active_][1]-ctx.Iters[ctx.active_][2])+ctx.I0 )) + "", t69, t70, t71_value = ((100*(1-ctx.Iters[ctx.active_][0]-ctx.Iters[ctx.active_][1]-ctx.Iters[ctx.active_][2]-ctx.I0/ctx.N))).toFixed(2) + "", t71, t72, t73, div24, span8, t75, i8, t76_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.get_d(ctx.active_)[3]+ctx.get_d(ctx.active_)[4]+ctx.get_d(ctx.active_)[5]+ctx.get_d(ctx.active_)[6]+ctx.get_d(ctx.active_)[7]) )) + "", t76, t77, t78, div27, t80, div34, updating_checked_2, t81, t82, div32, div29, t84, div31, div30, span9, t86, i9, t87_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.Iters[ctx.active_][7]+ctx.Iters[ctx.active_][8]) )) + "", t87, t88, t89_value = (100*(ctx.Iters[ctx.active_][7]+ctx.Iters[ctx.active_][8])).toFixed(2) + "", t89, t90, t91, div33, t93, div41, t94, updating_checked_3, t95, div39, div35, t97, div37, div36, span10, t99, i10, t100_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.Iters[ctx.active_][5]+ctx.Iters[ctx.active_][6]) )) + "", t100, t101, t102_value = (100*(ctx.Iters[ctx.active_][5]+ctx.Iters[ctx.active_][6])).toFixed(2) + "", t102, t103, t104, div38, span11, t106, i11, t107_value = formatNumber$1(ctx.Math.round(ctx.N*(ctx.get_d(ctx.active_)[5]+ctx.get_d(ctx.active_)[6]))) + "", t107, t108, t109, div40, t111, div48, t112, updating_checked_4, t113, div46, div42, t115, div45, div43, span12, t117, i12, t118_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.Iters[ctx.active_][9])) + "", t118, t119, t120_value = (100*ctx.Iters[ctx.active_][9]).toFixed(2) + "", t120, t121, t122, div44, span13, t124, i13, t125_value = formatNumber$1(ctx.Math.round(ctx.N*ctx.get_d(ctx.active_)[9])) + "", t125, t126, t127, div47, t129, div91, promise, t130, div51, t131, div52, t132, div60, div59, div53, span14, raw0_value = math_inline("\\mathcal{R}_t=" + (ctx.R0*ctx.InterventionAmt).toFixed(2) ) + "", t133, t134, show_if_1 = ctx.xScaleTime(ctx.InterventionTime) >= 100, t135, div57, div54, t136, t137_value = format("d")(ctx.InterventionTime) + "", t137, t138, span15, div55, t140, div56, svg, g1, g0, path, t141, div58, t142, div68, div67, div66, div65, div62, div61, t143, br1, t144, div64, div63, t145_value = (ctx.InterventionAmt).toFixed(2) + "", t145, t146, input0, t147, div82, div81, div69, show_if = checkCountryListed(ctx.country, ctx.province), t148, t149, div70, t150, t151_value = format(",")(ctx.Math.round(ctx.N)) + "", t151, t152, div71, t153, promise_1, t154, div72, t155, promise_2, t156, div73, t158, div77, div74, button0, t160, div75, button1, t162, div76, button2, t164, div78, t166, div79, t167, t168_value = format(",")(ctx.Math.round(ctx.Math.max(...ctx.total_infected))) + "", t168, t169, div80, t170, t171_value = format(",")(ctx.Math.round(ctx.totalDeaths)) + "", t171, t172, div85, div84, updating_checked_5, div83, t174, div90, div87, updating_checked_6, t175, div86, t177, div89, updating_checked_7, div88, t179, div134, div96, div93, t181, div94, t182, div95, t184, div133, div102, div97, t186, div98, t187, t188, t189, br2, t190, div99, t191_value = getDateFromDayZero(ctx.dayZero) + "", t191, t192, input1, t193, div100, t194, br3, t195, div101, t196, t197, input2, t198, div107, div105, div103, t199, html_tag, raw1_value = math_inline("\\mathcal{R}_0") + "", t200, div104, t201, br4, t202, div106, t203, t204, input3, t205, div113, div108, t207, div109, t208, html_tag_1, raw2_value = math_inline("T_{\\text{inc}}") + "", t209, br5, t210, div110, t211_value = (ctx.D_incbation).toFixed(2) + "", t211, t212, t213, input4, t214, div111, t215, html_tag_2, raw3_value = math_inline("T_{\\text{inf}}") + "", t216, br6, t217, div112, t218, t219, t220, input5, t221, div114, t222, div120, div115, t224, div116, t225, br7, t226, div117, t227_value = (ctx.CFR*100).toFixed(2) + "", t227, t228, t229, input6, t230, div118, t231, br8, t232, div119, t233, t234, t235, input7, input7_min_value, t236, div126, div121, t238, div122, t239, br9, t240, div123, t241, t242, t243, input8, t244, div124, t245, br10, t246, div125, t247, t248, t249, input9, t250, div132, div127, t252, div128, t253, br11, t254, div129, t255_value = (ctx.P_SEVERE*100).toFixed(2) + "", t255, t256, t257, input10, t258, div130, t259, br12, t260, div131, t261, t262, t263, input11, t264, div135, t265, p0, b1, br13, t267, a0, t269, a1, t271, p1, b2, br14, t273, i14, t275, t276, p2, b3, br15, t278, t279, p3, t280, italic0, t282, html_tag_3, raw4_value = math_inline("R_{0}") + "", t283, t284, p4, t285, italic1, t287, html_tag_4, raw5_value = math_inline("R_{0}") + "", t288, t289, p5, t291, p6, b4, br16, t293, t294, p7, t296, p8, b5, br17, t298, p9, t299, a2, t301, a3, t303, t304, p10, t306, p11, t307, b6, a4, t309, t310, b7, t312, span16, b8, t314, span17, b9, t316, span18, b10, t318, a5, t320, a6, t322, span19, t323, t324, p12, t325, t326_value = ctx.Math.round(ctx.indexToTime(ctx.active_)) + "", t326, t327, a7, t329, input12, t330, t331_value = ((1-(ctx.Math.pow(1 - (ctx.Iters[ctx.active_][2])*(0.45/100), ctx.p_num_ind)))*100).toFixed(5) + "", t331, t332, a8, t334, t335, p13, t337, div136, table, tr0, th0, t338, th1, t340, th2, t341, br18, t342, html_tag_5, raw7_value = math_inline("\\mathcal{R}_0") + "", t343, th3, t344, br19, t345, html_tag_6, raw8_value = math_inline("T_{\\text{inc}}") + "", t346, t347, th4, t348, br20, t349, html_tag_7, raw9_value = math_inline("T_{\\text{inf}}") + "", t350, t351, tr1, td0, a9, t353, td1, t355, td2, t357, td3, t359, td4, t361, tr2, td5, a10, t363, td6, t365, td7, t367, td8, t369, td9, t371, tr3, td10, a11, t373, td11, t375, td12, t377, td13, t379, td14, t381, tr4, td15, a12, t383, td16, t385, td17, t387, td18, t388, td19, t389, tr5, td20, a13, t391, td21, t393, td22, t395, td23, t397, td24, t398, tr6, td25, a14, t400, td26, t402, td27, t404, td28, t406, td29, t408, tr7, td30, a15, t410, td31, t412, td32, t414, td33, t416, td34, t418, tr8, td35, a16, t420, td36, t422, td37, t423, td38, t425, td39, t426, tr9, td40, a17, t428, td41, t430, td42, t432, td43, t433, td44, t434, tr10, td45, a18, t436, td46, t438, td47, t439, td48, t441, td49, t443, td50, t444, tr11, td51, a19, t446, td52, t448, td53, t450, td54, t451, td55, t452, p14, t453, a20, t455, a21, t457, t458, p15, t459, a22, t461, a23, t463, a24, t465, t466, p16, b11, br21, t468, html_tag_8, raw10_value = math_inline("I,R") + "", t469, i15, t471, i16, t473, i17, t475, t476, p17, b12, br22, t478, a25, t480, a26, t482, a27, t484, a28, t486, t487, div139, div138, div137, t489, form, textarea, current, dispose;
 
     	var checkbox0 = new Checkbox({
     		props: { color: "#CCC" },
@@ -28131,24 +24038,9 @@
 
     	handle_promise(promise = ctx.maxRealCases, info);
 
-    	var if_block0 = (show_if_1) && create_if_block_1$3(ctx);
+    	var if_block0 = (show_if_1) && create_if_block_1$1(ctx);
 
-    	function select_selectedValue_binding(value_5) {
-    		ctx.select_selectedValue_binding.call(null, value_5);
-    		updating_selectedValue = true;
-    		add_flush_callback(() => updating_selectedValue = false);
-    	}
-
-    	let select_props = { items: ctx.items };
-    	if (ctx.selectedValue !== void 0) {
-    		select_props.selectedValue = ctx.selectedValue;
-    	}
-    	var select = new Select({ props: select_props, $$inline: true });
-
-    	binding_callbacks.push(() => bind(select, 'selectedValue', select_selectedValue_binding));
-    	select.$on("select", ctx.handleSelect);
-
-    	var if_block1 = (show_if) && create_if_block$4(ctx);
+    	var if_block1 = (show_if) && create_if_block$1(ctx);
 
     	let info_1 = {
     		ctx,
@@ -28176,8 +24068,8 @@
 
     	handle_promise(promise_2 = ctx.fatalitiesToday, info_2);
 
-    	function checkbox7_checked_binding(value_6) {
-    		ctx.checkbox7_checked_binding.call(null, value_6);
+    	function checkbox7_checked_binding(value_5) {
+    		ctx.checkbox7_checked_binding.call(null, value_5);
     		updating_checked_5 = true;
     		add_flush_callback(() => updating_checked_5 = false);
     	}
@@ -28190,8 +24082,8 @@
 
     	binding_callbacks.push(() => bind(checkbox7, 'checked', checkbox7_checked_binding));
 
-    	function checkbox8_checked_binding(value_7) {
-    		ctx.checkbox8_checked_binding.call(null, value_7);
+    	function checkbox8_checked_binding(value_6) {
+    		ctx.checkbox8_checked_binding.call(null, value_6);
     		updating_checked_6 = true;
     		add_flush_callback(() => updating_checked_6 = false);
     	}
@@ -28204,8 +24096,8 @@
 
     	binding_callbacks.push(() => bind(checkbox8, 'checked', checkbox8_checked_binding));
 
-    	function checkbox9_checked_binding(value_8) {
-    		ctx.checkbox9_checked_binding.call(null, value_8);
+    	function checkbox9_checked_binding(value_7) {
+    		ctx.checkbox9_checked_binding.call(null, value_7);
     		updating_checked_7 = true;
     		add_flush_callback(() => updating_checked_7 = false);
     	}
@@ -28500,615 +24392,615 @@
     			div82 = element("div");
     			div81 = element("div");
     			div69 = element("div");
-    			select.$$.fragment.c();
-    			t148 = space();
-    			div70 = element("div");
     			if (if_block1) if_block1.c();
-    			t149 = text(" Population: ");
-    			t150 = text(t150_value);
-    			t151 = space();
+    			t148 = text(ctx.country);
+    			t149 = space();
+    			div70 = element("div");
+    			t150 = text("Population: ");
+    			t151 = text(t151_value);
+    			t152 = space();
     			div71 = element("div");
-    			t152 = text("JHU - Confirmed Today:\n\t ");
+    			t153 = text("JHU - Confirmed Today:\n\t ");
 
     			info_1.block.c();
 
-    			t153 = space();
+    			t154 = space();
     			div72 = element("div");
-    			t154 = text("JHU - Fatalities Today:\n\t ");
+    			t155 = text("JHU - Fatalities Today:\n\t ");
 
     			info_2.block.c();
 
-    			t155 = space();
+    			t156 = space();
     			div73 = element("div");
     			div73.textContent = "Strategy";
-    			t157 = space();
+    			t158 = space();
     			div77 = element("div");
     			div74 = element("div");
     			button0 = element("button");
     			button0.textContent = "Observe";
-    			t159 = space();
+    			t160 = space();
     			div75 = element("div");
     			button1 = element("button");
     			button1.textContent = "Mitigate";
-    			t161 = space();
+    			t162 = space();
     			div76 = element("div");
     			button2 = element("button");
     			button2.textContent = "Suppress";
-    			t163 = space();
+    			t164 = space();
     			div78 = element("div");
     			div78.textContent = "Outcome (Prognosis)";
-    			t165 = space();
+    			t166 = space();
     			div79 = element("div");
-    			t166 = text("Total Infected: ");
-    			t167 = text(t167_value);
-    			t168 = space();
+    			t167 = text("Total Infected: ");
+    			t168 = text(t168_value);
+    			t169 = space();
     			div80 = element("div");
-    			t169 = text("Fatalities: ");
-    			t170 = text(t170_value);
-    			t171 = space();
+    			t170 = text("Fatalities: ");
+    			t171 = text(t171_value);
+    			t172 = space();
     			div85 = element("div");
     			div84 = element("div");
     			checkbox7.$$.fragment.c();
     			div83 = element("div");
     			div83.textContent = "linear scale";
-    			t173 = space();
+    			t174 = space();
     			div90 = element("div");
     			div87 = element("div");
     			checkbox8.$$.fragment.c();
-    			t174 = space();
+    			t175 = space();
     			div86 = element("div");
     			div86.textContent = "Johns Hopkins Data";
-    			t176 = space();
+    			t177 = space();
     			div89 = element("div");
     			checkbox9.$$.fragment.c();
     			div88 = element("div");
     			div88.textContent = "Simulation";
-    			t178 = space();
+    			t179 = space();
     			div134 = element("div");
     			div96 = element("div");
     			div93 = element("div");
     			div93.textContent = "Transmission Dynamics";
-    			t180 = space();
-    			div94 = element("div");
     			t181 = space();
+    			div94 = element("div");
+    			t182 = space();
     			div95 = element("div");
     			div95.textContent = "Clinical Dynamics";
-    			t183 = space();
+    			t184 = space();
     			div133 = element("div");
     			div102 = element("div");
     			div97 = element("div");
     			div97.textContent = "Day Zero";
-    			t185 = space();
+    			t186 = space();
     			div98 = element("div");
-    			t186 = text("Start of spread in ");
-    			t187 = text(ctx.country);
-    			t188 = text(".");
+    			t187 = text("Start of spread in ");
+    			t188 = text(ctx.country);
+    			t189 = text(".");
     			br2 = element("br");
-    			t189 = space();
+    			t190 = space();
     			div99 = element("div");
-    			t190 = text(t190_value);
-    			t191 = space();
-    			input1 = element("input");
+    			t191 = text(t191_value);
     			t192 = space();
+    			input1 = element("input");
+    			t193 = space();
     			div100 = element("div");
-    			t193 = text("Number of initial infections.");
+    			t194 = text("Number of initial infections.");
     			br3 = element("br");
-    			t194 = space();
+    			t195 = space();
     			div101 = element("div");
-    			t195 = text(ctx.I0);
-    			t196 = space();
-    			input2 = element("input");
+    			t196 = text(ctx.I0);
     			t197 = space();
+    			input2 = element("input");
+    			t198 = space();
     			div107 = element("div");
     			div105 = element("div");
     			div103 = element("div");
-    			t198 = text("Basic Reproduction Number ");
-    			t199 = space();
+    			t199 = text("Basic Reproduction Number ");
+    			t200 = space();
     			div104 = element("div");
-    			t200 = text("Measure of contagiousness: the number of secondary infections each infected individual produces. ");
+    			t201 = text("Measure of contagiousness: the number of secondary infections each infected individual produces. ");
     			br4 = element("br");
-    			t201 = space();
+    			t202 = space();
     			div106 = element("div");
-    			t202 = text(ctx.R0);
-    			t203 = space();
-    			input3 = element("input");
+    			t203 = text(ctx.R0);
     			t204 = space();
+    			input3 = element("input");
+    			t205 = space();
     			div113 = element("div");
     			div108 = element("div");
     			div108.textContent = "Transmission Times";
-    			t206 = space();
+    			t207 = space();
     			div109 = element("div");
-    			t207 = text("Length of incubation period, ");
-    			t208 = text(".");
+    			t208 = text("Length of incubation period, ");
+    			t209 = text(".");
     			br5 = element("br");
-    			t209 = space();
+    			t210 = space();
     			div110 = element("div");
-    			t210 = text(t210_value);
-    			t211 = text(" days");
-    			t212 = space();
-    			input4 = element("input");
+    			t211 = text(t211_value);
+    			t212 = text(" days");
     			t213 = space();
+    			input4 = element("input");
+    			t214 = space();
     			div111 = element("div");
-    			t214 = text("Duration patient is infectious, ");
-    			t215 = text(".");
+    			t215 = text("Duration patient is infectious, ");
+    			t216 = text(".");
     			br6 = element("br");
-    			t216 = space();
+    			t217 = space();
     			div112 = element("div");
-    			t217 = text(ctx.D_infectious);
-    			t218 = text(" Days");
-    			t219 = space();
-    			input5 = element("input");
+    			t218 = text(ctx.D_infectious);
+    			t219 = text(" Days");
     			t220 = space();
-    			div114 = element("div");
+    			input5 = element("input");
     			t221 = space();
+    			div114 = element("div");
+    			t222 = space();
     			div120 = element("div");
     			div115 = element("div");
     			div115.textContent = "Morbidity Statistics";
-    			t223 = space();
+    			t224 = space();
     			div116 = element("div");
-    			t224 = text("Case fatality rate.");
+    			t225 = text("Case fatality rate.");
     			br7 = element("br");
-    			t225 = space();
+    			t226 = space();
     			div117 = element("div");
-    			t226 = text(t226_value);
-    			t227 = text(" %");
-    			t228 = space();
-    			input6 = element("input");
+    			t227 = text(t227_value);
+    			t228 = text(" %");
     			t229 = space();
+    			input6 = element("input");
+    			t230 = space();
     			div118 = element("div");
-    			t230 = text("Time from end of incubation to death.");
+    			t231 = text("Time from end of incubation to death.");
     			br8 = element("br");
-    			t231 = space();
+    			t232 = space();
     			div119 = element("div");
-    			t232 = text(ctx.Time_to_death);
-    			t233 = text(" Days");
-    			t234 = space();
-    			input7 = element("input");
+    			t233 = text(ctx.Time_to_death);
+    			t234 = text(" Days");
     			t235 = space();
+    			input7 = element("input");
+    			t236 = space();
     			div126 = element("div");
     			div121 = element("div");
     			div121.textContent = "Recovery Times";
-    			t237 = space();
+    			t238 = space();
     			div122 = element("div");
-    			t238 = text("Length of hospital stay");
+    			t239 = text("Length of hospital stay");
     			br9 = element("br");
-    			t239 = space();
+    			t240 = space();
     			div123 = element("div");
-    			t240 = text(ctx.D_recovery_severe);
-    			t241 = text(" Days");
-    			t242 = space();
-    			input8 = element("input");
+    			t241 = text(ctx.D_recovery_severe);
+    			t242 = text(" Days");
     			t243 = space();
+    			input8 = element("input");
+    			t244 = space();
     			div124 = element("div");
-    			t244 = text("Recovery time for mild cases");
+    			t245 = text("Recovery time for mild cases");
     			br10 = element("br");
-    			t245 = space();
+    			t246 = space();
     			div125 = element("div");
-    			t246 = text(ctx.D_recovery_mild);
-    			t247 = text(" Days");
-    			t248 = space();
-    			input9 = element("input");
+    			t247 = text(ctx.D_recovery_mild);
+    			t248 = text(" Days");
     			t249 = space();
+    			input9 = element("input");
+    			t250 = space();
     			div132 = element("div");
     			div127 = element("div");
     			div127.textContent = "Care statistics";
-    			t251 = space();
+    			t252 = space();
     			div128 = element("div");
-    			t252 = text("Hospitalization rate.");
+    			t253 = text("Hospitalization rate.");
     			br11 = element("br");
-    			t253 = space();
+    			t254 = space();
     			div129 = element("div");
-    			t254 = text(t254_value);
-    			t255 = text(" %");
-    			t256 = space();
-    			input10 = element("input");
+    			t255 = text(t255_value);
+    			t256 = text(" %");
     			t257 = space();
+    			input10 = element("input");
+    			t258 = space();
     			div130 = element("div");
-    			t258 = text("Time to hospitalization.");
+    			t259 = text("Time to hospitalization.");
     			br12 = element("br");
-    			t259 = space();
+    			t260 = space();
     			div131 = element("div");
-    			t260 = text(ctx.D_hospital_lag);
-    			t261 = text(" Days");
-    			t262 = space();
-    			input11 = element("input");
+    			t261 = text(ctx.D_hospital_lag);
+    			t262 = text(" Days");
     			t263 = space();
-    			div135 = element("div");
+    			input11 = element("input");
     			t264 = space();
+    			div135 = element("div");
+    			t265 = space();
     			p0 = element("p");
     			b1 = element("b");
     			b1.textContent = "What is this?";
     			br13 = element("br");
-    			t266 = text("This is a modification of Gabriel Goh's epidemic calculator (available ");
+    			t267 = text("This is a modification of Gabriel Goh's epidemic calculator (available ");
     			a0 = element("a");
     			a0.textContent = "here";
-    			t268 = text("), that complements the epidemic calculation with a graph of  confirmed cases and deaths for a specified country, based on the Johns Hopkins University repository. The app lets you explore different strategies to respond. See this article for further information: ");
+    			t269 = text("), that complements the epidemic calculation with a graph of  confirmed cases and deaths for a specified country, based on the Johns Hopkins University repository. The app lets you explore different strategies to respond. See this article for further information: ");
     			a1 = element("a");
     			a1.textContent = "Tomas Pueyo - Coronavirus: The Hammer and the Dance";
-    			t270 = space();
+    			t271 = space();
     			p1 = element("p");
     			b2 = element("b");
     			b2.textContent = "What is shown?";
     			br14 = element("br");
-    			t272 = text("\nPlease refer to the text below for a description of the simulated data. When you select \"Johns Hopkins Data\", the cumulative number of deaths on a given day is plotted in blue. This corresponds to the cumulated number of deaths in the simulation (shown in light blue). There is no exact analogue in the simulation for the number of confirmed cases in the real world. In pink we show the ");
+    			t273 = text("\nPlease refer to the text below for a description of the simulated data. When you select \"Johns Hopkins Data\", the cumulative number of deaths on a given day is plotted in blue. This corresponds to the cumulated number of deaths in the simulation (shown in light blue). There is no exact analogue in the simulation for the number of confirmed cases in the real world. In pink we show the ");
     			i14 = element("i");
     			i14.textContent = "new";
-    			t274 = text(" number of cases in your country on a given day. This implies that new cases are only isolated following a positive test outcome - before they receive the test outcome they are infectious, not isolated and hence may be interpreted as analogue to the \"infected\" category of the simulation.");
-    			t275 = space();
+    			t275 = text(" number of cases in your country on a given day. This implies that new cases are only isolated following a positive test outcome - before they receive the test outcome they are infectious, not isolated and hence may be interpreted as analogue to the \"infected\" category of the simulation.");
+    			t276 = space();
     			p2 = element("p");
     			b3 = element("b");
     			b3.textContent = "Response Strategies";
     			br15 = element("br");
-    			t277 = text("While most countries have realized that simply observing the disease is not a good strategy, a debate is on whether it is better to mitigate or suppress the outbreak.");
-    			t278 = space();
+    			t278 = text("While most countries have realized that simply observing the disease is not a good strategy, a debate is on whether it is better to mitigate or suppress the outbreak.");
+    			t279 = space();
     			p3 = element("p");
-    			t279 = text("A ");
+    			t280 = text("A ");
     			italic0 = element("italic");
     			italic0.textContent = "mitigaton";
-    			t281 = text(" strategy seeks to bring the growth rate ");
-    			t282 = text(" close to 1, so that the burden on the health care system can be managed. The goal of such a strategy is to achieve what is called herd immunity. Such a strategy implies that restrictions such as social distancing have to be in place for a long time since the number of new cases per day must be kept manageable. Moreover such a strategy gives the virus substantial opportunity to evolve.");
-    			t283 = space();
+    			t282 = text(" strategy seeks to bring the growth rate ");
+    			t283 = text(" close to 1, so that the burden on the health care system can be managed. The goal of such a strategy is to achieve what is called herd immunity. Such a strategy implies that restrictions such as social distancing have to be in place for a long time since the number of new cases per day must be kept manageable. Moreover such a strategy gives the virus substantial opportunity to evolve.");
+    			t284 = space();
     			p4 = element("p");
-    			t284 = text("A ");
+    			t285 = text("A ");
     			italic1 = element("italic");
     			italic1.textContent = "suppresion";
-    			t286 = text(" strategy on the other hand seeks to achieve a growth rate ");
-    			t287 = text(" smaller than 1 until the number of new cases is near zero. At this stage sufficient testing and tracking capabilities may enable a targeted response to small outbreaks, and a lift of measures such as social distancing.");
-    			t288 = space();
+    			t287 = text(" strategy on the other hand seeks to achieve a growth rate ");
+    			t288 = text(" smaller than 1 until the number of new cases is near zero. At this stage sufficient testing and tracking capabilities may enable a targeted response to small outbreaks, and a lift of measures such as social distancing.");
+    			t289 = space();
     			p5 = element("p");
     			p5.textContent = "You can explore the different strategies using the buttons for \"Observe\", \"Mitigate\" and \"Suppress\". You can change the duration of the simulation by click and drag of an axis label.";
-    			t290 = space();
+    			t291 = space();
     			p6 = element("p");
     			b4 = element("b");
     			b4.textContent = "Limitations";
     			br16 = element("br");
-    			t292 = text("\nNote that it is not possible to accurately predict the outcome figures for \"Total infected\" and \"Fatalities\" -  these have to be interpreted as order of magnitude estimates for a given strategy.");
-    			t293 = space();
+    			t293 = text("\nNote that it is not possible to accurately predict the outcome figures for \"Total infected\" and \"Fatalities\" -  these have to be interpreted as order of magnitude estimates for a given strategy.");
+    			t294 = space();
     			p7 = element("p");
     			p7.textContent = "Please note also that if your country has recently implemented new elements of a mitigation or suppression strategy, these may not be reflected in your countries current data yet.";
-    			t295 = space();
+    			t296 = space();
     			p8 = element("p");
     			b5 = element("b");
     			b5.textContent = "Acknowledgements";
     			br17 = element("br");
-    			t297 = text("\nMany thanks to Gabriel Goh for writing this excellent calculator in the first place, and to Karel Kouřil for feedback on the country specific features.\n\n\n");
+    			t298 = text("\nMany thanks to Gabriel Goh for writing this excellent calculator in the first place, and to Karel Kouřil for feedback on the country specific features.\n\n\n");
     			p9 = element("p");
-    			t298 = text("The original information about the usage of the calculator, written by Gabriel Goh is given below (also available at ");
+    			t299 = text("The original information about the usage of the calculator, written by Gabriel Goh is given below (also available at ");
     			a2 = element("a");
     			a2.textContent = "http://gabgoh.github.io/COVID/index.html";
-    			t300 = text(". To provide feedback and comments on the country-specific features please email me ");
+    			t301 = text(". To provide feedback and comments on the country-specific features please email me ");
     			a3 = element("a");
     			a3.textContent = "here";
-    			t302 = text(".");
-    			t303 = space();
+    			t303 = text(".");
+    			t304 = space();
     			p10 = element("p");
     			p10.textContent = "At the time of writing, the coronavirus disease of 2019 remains a global health crisis of grave and uncertain magnitude. To the non-expert (such as myself), contextualizing the numbers, forecasts and epidemiological parameters described in the media and literature can be challenging. I created this calculator as an attempt to address this gap in understanding.";
-    			t305 = space();
+    			t306 = space();
     			p11 = element("p");
-    			t306 = text("This calculator implements a classical infectious disease model — ");
+    			t307 = text("This calculator implements a classical infectious disease model — ");
     			b6 = element("b");
     			a4 = element("a");
     			a4.textContent = "SEIR";
-    			t308 = space();
-    			t309 = text("(");
+    			t309 = space();
+    			t310 = text("(");
     			b7 = element("b");
     			b7.textContent = "S";
-    			t311 = text("usceptible → ");
+    			t312 = text("usceptible → ");
     			span16 = element("span");
     			b8 = element("b");
     			b8.textContent = "E";
-    			t313 = text("xposed → ");
+    			t314 = text("xposed → ");
     			span17 = element("span");
     			b9 = element("b");
     			b9.textContent = "I";
-    			t315 = text("nfected → ");
+    			t316 = text("nfected → ");
     			span18 = element("span");
     			b10 = element("b");
     			b10.textContent = "R";
-    			t317 = text("emoved), an idealized model of spread still used in frontlines of research e.g. [");
+    			t318 = text("emoved), an idealized model of spread still used in frontlines of research e.g. [");
     			a5 = element("a");
     			a5.textContent = "Wu, et. al";
-    			t319 = text(", ");
+    			t320 = text(", ");
     			a6 = element("a");
     			a6.textContent = "Kucharski et. al";
-    			t321 = text("]. The dynamics of this model are characterized by a set of four ordinary differential equations that correspond to the stages of the disease's progression:\n");
+    			t322 = text("]. The dynamics of this model are characterized by a set of four ordinary differential equations that correspond to the stages of the disease's progression:\n");
     			span19 = element("span");
-    			t322 = text("\nIn addition to the transmission dynamics, this model allows the use of supplemental timing information to model the death rate and healthcare burden.");
-    			t323 = space();
+    			t323 = text("\nIn addition to the transmission dynamics, this model allows the use of supplemental timing information to model the death rate and healthcare burden.");
+    			t324 = space();
     			p12 = element("p");
-    			t324 = text("Note that one can use this calculator to measure one's risk exposure to the disease for any given day of the epidemic: the probability of getting infected on day ");
-    			t325 = text(t325_value);
-    			t326 = text(" given ");
+    			t325 = text("Note that one can use this calculator to measure one's risk exposure to the disease for any given day of the epidemic: the probability of getting infected on day ");
+    			t326 = text(t326_value);
+    			t327 = text(" given ");
     			a7 = element("a");
     			a7.textContent = "close contact";
-    			t328 = text(" with ");
+    			t329 = text(" with ");
     			input12 = element("input");
-    			t329 = text(" individuals is ");
-    			t330 = text(t330_value);
-    			t331 = text("% given an attack rate of 0.45% [");
+    			t330 = text(" individuals is ");
+    			t331 = text(t331_value);
+    			t332 = text("% given an attack rate of 0.45% [");
     			a8 = element("a");
     			a8.textContent = "Burke et. al";
-    			t333 = text("].");
-    			t334 = space();
+    			t334 = text("].");
+    			t335 = space();
     			p13 = element("p");
     			p13.textContent = "A sampling of the estimates for epidemic parameters are presented below:";
-    			t336 = space();
+    			t337 = space();
     			div136 = element("div");
     			table = element("table");
     			tr0 = element("tr");
     			th0 = element("th");
-    			t337 = space();
+    			t338 = space();
     			th1 = element("th");
     			th1.textContent = "Location";
-    			t339 = space();
+    			t340 = space();
     			th2 = element("th");
-    			t340 = text("Reproduction Number");
+    			t341 = text("Reproduction Number");
     			br18 = element("br");
-    			t341 = space();
     			t342 = space();
+    			t343 = space();
     			th3 = element("th");
-    			t343 = text("Incubation Period");
+    			t344 = text("Incubation Period");
     			br19 = element("br");
-    			t344 = space();
-    			t345 = text(" (in days)");
-    			t346 = space();
+    			t345 = space();
+    			t346 = text(" (in days)");
+    			t347 = space();
     			th4 = element("th");
-    			t347 = text("Infectious Period");
+    			t348 = text("Infectious Period");
     			br20 = element("br");
-    			t348 = space();
-    			t349 = text(" (in days)");
-    			t350 = space();
+    			t349 = space();
+    			t350 = text(" (in days)");
+    			t351 = space();
     			tr1 = element("tr");
     			td0 = element("td");
     			a9 = element("a");
     			a9.textContent = "Kucharski et. al";
-    			t352 = space();
+    			t353 = space();
     			td1 = element("td");
     			td1.textContent = "Wuhan";
-    			t354 = space();
+    			t355 = space();
     			td2 = element("td");
     			td2.textContent = "3.0 (1.5 — 4.5)";
-    			t356 = space();
+    			t357 = space();
     			td3 = element("td");
     			td3.textContent = "5.2";
-    			t358 = space();
+    			t359 = space();
     			td4 = element("td");
     			td4.textContent = "2.9";
-    			t360 = space();
+    			t361 = space();
     			tr2 = element("tr");
     			td5 = element("td");
     			a10 = element("a");
     			a10.textContent = "Li, Leung and Leung";
-    			t362 = space();
+    			t363 = space();
     			td6 = element("td");
     			td6.textContent = "Wuhan";
-    			t364 = space();
+    			t365 = space();
     			td7 = element("td");
     			td7.textContent = "2.2 (1.4 — 3.9)";
-    			t366 = space();
+    			t367 = space();
     			td8 = element("td");
     			td8.textContent = "5.2 (4.1 — 7.0)";
-    			t368 = space();
+    			t369 = space();
     			td9 = element("td");
     			td9.textContent = "2.3 (0.0 — 14.9)";
-    			t370 = space();
+    			t371 = space();
     			tr3 = element("tr");
     			td10 = element("td");
     			a11 = element("a");
     			a11.textContent = "Wu et. al";
-    			t372 = space();
+    			t373 = space();
     			td11 = element("td");
     			td11.textContent = "Greater Wuhan";
-    			t374 = space();
+    			t375 = space();
     			td12 = element("td");
     			td12.textContent = "2.68 (2.47 — 2.86)";
-    			t376 = space();
+    			t377 = space();
     			td13 = element("td");
     			td13.textContent = "6.1";
-    			t378 = space();
+    			t379 = space();
     			td14 = element("td");
     			td14.textContent = "2.3";
-    			t380 = space();
+    			t381 = space();
     			tr4 = element("tr");
     			td15 = element("td");
     			a12 = element("a");
     			a12.textContent = "WHO Initial Estimate";
-    			t382 = space();
+    			t383 = space();
     			td16 = element("td");
     			td16.textContent = "Hubei";
-    			t384 = space();
+    			t385 = space();
     			td17 = element("td");
     			td17.textContent = "1.95 (1.4 — 2.5)";
-    			t386 = space();
-    			td18 = element("td");
     			t387 = space();
-    			td19 = element("td");
+    			td18 = element("td");
     			t388 = space();
+    			td19 = element("td");
+    			t389 = space();
     			tr5 = element("tr");
     			td20 = element("td");
     			a13 = element("a");
     			a13.textContent = "WHO-China Joint Mission";
-    			t390 = space();
+    			t391 = space();
     			td21 = element("td");
     			td21.textContent = "Hubei";
-    			t392 = space();
+    			t393 = space();
     			td22 = element("td");
     			td22.textContent = "2.25 (2.0 — 2.5)";
-    			t394 = space();
+    			t395 = space();
     			td23 = element("td");
     			td23.textContent = "5.5 (5.0 - 6.0)";
-    			t396 = space();
-    			td24 = element("td");
     			t397 = space();
+    			td24 = element("td");
+    			t398 = space();
     			tr6 = element("tr");
     			td25 = element("td");
     			a14 = element("a");
     			a14.textContent = "Liu et. al";
-    			t399 = space();
+    			t400 = space();
     			td26 = element("td");
     			td26.textContent = "Guangdong";
-    			t401 = space();
+    			t402 = space();
     			td27 = element("td");
     			td27.textContent = "4.5 (4.4 — 4.6)";
-    			t403 = space();
+    			t404 = space();
     			td28 = element("td");
     			td28.textContent = "4.8 (2.2 — 7.4)";
-    			t405 = space();
+    			t406 = space();
     			td29 = element("td");
     			td29.textContent = "2.9 (0 — 5.9)";
-    			t407 = space();
+    			t408 = space();
     			tr7 = element("tr");
     			td30 = element("td");
     			a15 = element("a");
     			a15.textContent = "Rocklöv, Sjödin and Wilder-Smith";
-    			t409 = space();
+    			t410 = space();
     			td31 = element("td");
     			td31.textContent = "Princess Diamond";
-    			t411 = space();
+    			t412 = space();
     			td32 = element("td");
     			td32.textContent = "14.8";
-    			t413 = space();
+    			t414 = space();
     			td33 = element("td");
     			td33.textContent = "5.0";
-    			t415 = space();
+    			t416 = space();
     			td34 = element("td");
     			td34.textContent = "10.0";
-    			t417 = space();
+    			t418 = space();
     			tr8 = element("tr");
     			td35 = element("td");
     			a16 = element("a");
     			a16.textContent = "Backer, Klinkenberg, Wallinga";
-    			t419 = space();
+    			t420 = space();
     			td36 = element("td");
     			td36.textContent = "Wuhan";
-    			t421 = space();
-    			td37 = element("td");
     			t422 = space();
+    			td37 = element("td");
+    			t423 = space();
     			td38 = element("td");
     			td38.textContent = "6.5 (5.6 — 7.9)";
-    			t424 = space();
-    			td39 = element("td");
     			t425 = space();
+    			td39 = element("td");
+    			t426 = space();
     			tr9 = element("tr");
     			td40 = element("td");
     			a17 = element("a");
     			a17.textContent = "Read et. al";
-    			t427 = space();
+    			t428 = space();
     			td41 = element("td");
     			td41.textContent = "Wuhan";
-    			t429 = space();
+    			t430 = space();
     			td42 = element("td");
     			td42.textContent = "3.11 (2.39 — 4.13)";
-    			t431 = space();
-    			td43 = element("td");
     			t432 = space();
-    			td44 = element("td");
+    			td43 = element("td");
     			t433 = space();
+    			td44 = element("td");
+    			t434 = space();
     			tr10 = element("tr");
     			td45 = element("td");
     			a18 = element("a");
     			a18.textContent = "Bi et. al";
-    			t435 = space();
+    			t436 = space();
     			td46 = element("td");
     			td46.textContent = "Shenzhen";
-    			t437 = space();
-    			td47 = element("td");
     			t438 = space();
+    			td47 = element("td");
+    			t439 = space();
     			td48 = element("td");
     			td48.textContent = "4.8 (4.2 — 5.4)";
-    			t440 = space();
+    			t441 = space();
     			td49 = element("td");
     			td49.textContent = "1.5 (0 — 3.4)";
-    			t442 = space();
-    			td50 = element("td");
     			t443 = space();
+    			td50 = element("td");
+    			t444 = space();
     			tr11 = element("tr");
     			td51 = element("td");
     			a19 = element("a");
     			a19.textContent = "Tang et. al";
-    			t445 = space();
+    			t446 = space();
     			td52 = element("td");
     			td52.textContent = "China";
-    			t447 = space();
+    			t448 = space();
     			td53 = element("td");
     			td53.textContent = "6.47 (5.71 — 7.23)";
-    			t449 = space();
-    			td54 = element("td");
     			t450 = space();
-    			td55 = element("td");
+    			td54 = element("td");
     			t451 = space();
+    			td55 = element("td");
+    			t452 = space();
     			p14 = element("p");
-    			t452 = text("See [");
+    			t453 = text("See [");
     			a20 = element("a");
     			a20.textContent = "Liu et. al";
-    			t454 = text("] detailed survey of current estimates of the reproduction number. Parameters for the diseases' clinical characteristics are taken from the following ");
+    			t455 = text("] detailed survey of current estimates of the reproduction number. Parameters for the diseases' clinical characteristics are taken from the following ");
     			a21 = element("a");
     			a21.textContent = "WHO Report";
-    			t456 = text(".");
-    			t457 = space();
+    			t457 = text(".");
+    			t458 = space();
     			p15 = element("p");
-    			t458 = text("Please DM me feedback ");
+    			t459 = text("Please DM me feedback ");
     			a22 = element("a");
     			a22.textContent = "here";
-    			t460 = text(" or email me ");
+    			t461 = text(" or email me ");
     			a23 = element("a");
     			a23.textContent = "here";
-    			t462 = text(". My ");
+    			t463 = text(". My ");
     			a24 = element("a");
     			a24.textContent = "website";
-    			t464 = text(".");
-    			t465 = space();
+    			t465 = text(".");
+    			t466 = space();
     			p16 = element("p");
     			b11 = element("b");
     			b11.textContent = "Model Details ";
     			br21 = element("br");
-    			t467 = text("\nThe clinical dynamics in this model are an elaboration on SEIR that simulates the disease's progression at a higher resolution, subdividing ");
-    			t468 = text(" into ");
+    			t468 = text("\nThe clinical dynamics in this model are an elaboration on SEIR that simulates the disease's progression at a higher resolution, subdividing ");
+    			t469 = text(" into ");
     			i15 = element("i");
     			i15.textContent = "mild";
-    			t470 = text(" (patients who recover without the need for hospitalization), ");
+    			t471 = text(" (patients who recover without the need for hospitalization), ");
     			i16 = element("i");
     			i16.textContent = "moderate";
-    			t472 = text(" (patients who require hospitalization but survive) and ");
+    			t473 = text(" (patients who require hospitalization but survive) and ");
     			i17 = element("i");
     			i17.textContent = "fatal";
-    			t474 = text(" (patients who require hospitalization and do not survive). Each of these variables follows its own trajectory to the final outcome, and the sum of these compartments add up to the values predicted by SEIR. Please refer to the source code for details. Note that we assume, for simplicity, that all fatalities come from hospitals, and that all fatal cases are admitted to hospitals immediately after the infectious period.");
-    			t475 = space();
+    			t475 = text(" (patients who require hospitalization and do not survive). Each of these variables follows its own trajectory to the final outcome, and the sum of these compartments add up to the values predicted by SEIR. Please refer to the source code for details. Note that we assume, for simplicity, that all fatalities come from hospitals, and that all fatal cases are admitted to hospitals immediately after the infectious period.");
+    			t476 = space();
     			p17 = element("p");
     			b12 = element("b");
     			b12.textContent = "Acknowledgements ";
     			br22 = element("br");
-    			t477 = space();
+    			t478 = space();
     			a25 = element("a");
     			a25.textContent = "Steven De Keninck";
-    			t479 = text(" for RK4 Integrator. ");
+    			t480 = text(" for RK4 Integrator. ");
     			a26 = element("a");
     			a26.textContent = "Chris Olah";
-    			t481 = text(", ");
+    			t482 = text(", ");
     			a27 = element("a");
     			a27.textContent = "Shan Carter";
-    			t483 = text(" and ");
+    			t484 = text(" and ");
     			a28 = element("a");
     			a28.textContent = "Ludwig Schubert";
-    			t485 = text(" wonderful feedback. Charlie Huang for context and discussion.");
-    			t486 = space();
+    			t486 = text(" wonderful feedback. Charlie Huang for context and discussion.");
+    			t487 = space();
     			div139 = element("div");
     			div138 = element("div");
     			div137 = element("div");
     			div137.textContent = "Export parameters:";
-    			t488 = space();
+    			t489 = space();
     			form = element("form");
     			textarea = element("textarea");
     			attr_dev(link, "rel", "stylesheet");
     			attr_dev(link, "href", "https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.css");
     			attr_dev(link, "integrity", "sha384-bsHo4/LA+lkZv61JspMDQB9QP1TtO4IgOf2yYS+J6VdAYLVyx1c3XKcsHh0Vy8Ws");
     			attr_dev(link, "crossorigin", "anonymous");
-    			add_location(link, file$9, 460, 0, 16780);
-    			attr_dev(h2, "class", "svelte-14bwum0");
-    			add_location(h2, file$9, 697, 0, 21846);
-    			add_location(b0, file$9, 703, 182, 22226);
-    			add_location(br0, file$9, 703, 192, 22236);
-    			attr_dev(div0, "class", "legendtext svelte-14bwum0");
+    			add_location(link, file$3, 405, 0, 15238);
+    			attr_dev(h2, "class", "svelte-py7r4k");
+    			add_location(h2, file$3, 639, 0, 20281);
+    			add_location(b0, file$3, 645, 182, 20661);
+    			add_location(br0, file$3, 645, 192, 20671);
+    			attr_dev(div0, "class", "legendtext svelte-py7r4k");
     			set_style(div0, "position", "absolute");
     			set_style(div0, "left", "-16px");
     			set_style(div0, "top", "-34px");
@@ -29118,255 +25010,255 @@
     			set_style(div0, "line-height", "16px");
     			set_style(div0, "font-weight", "normal");
     			set_style(div0, "text-align", "center");
-    			add_location(div0, file$9, 703, 6, 22050);
+    			add_location(div0, file$3, 645, 6, 20485);
     			set_style(span0, "pointer-events", "none");
-    			add_location(span0, file$9, 708, 8, 22405);
-    			attr_dev(div1, "class", "legendtitle svelte-14bwum0");
-    			add_location(div1, file$9, 712, 10, 22568);
+    			add_location(span0, file$3, 650, 8, 20840);
+    			attr_dev(div1, "class", "legendtitle svelte-py7r4k");
+    			add_location(div1, file$3, 654, 10, 21003);
     			set_style(span1, "font-size", "12px");
     			set_style(span1, "padding-right", "3px");
     			set_style(span1, "color", "#CCC");
-    			add_location(span1, file$9, 714, 37, 22710);
-    			add_location(i0, file$9, 714, 106, 22779);
-    			attr_dev(div2, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div2, file$9, 714, 10, 22683);
+    			add_location(span1, file$3, 656, 37, 21145);
+    			add_location(i0, file$3, 656, 106, 21214);
+    			attr_dev(div2, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div2, file$3, 656, 10, 21118);
     			set_style(span2, "font-size", "12px");
     			set_style(span2, "padding-right", "2px");
     			set_style(span2, "color", "#CCC");
-    			add_location(span2, file$9, 716, 37, 22954);
-    			add_location(i1, file$9, 716, 106, 23023);
-    			attr_dev(div3, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div3, file$9, 716, 10, 22927);
+    			add_location(span2, file$3, 658, 37, 21389);
+    			add_location(i1, file$3, 658, 106, 21458);
+    			attr_dev(div3, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div3, file$3, 658, 10, 21362);
     			set_style(div4, "padding-top", "5px");
     			set_style(div4, "padding-bottom", "1px");
-    			add_location(div4, file$9, 713, 10, 22621);
-    			attr_dev(div5, "class", "legend svelte-14bwum0");
+    			add_location(div4, file$3, 655, 10, 21056);
+    			attr_dev(div5, "class", "legend svelte-py7r4k");
     			set_style(div5, "position", "absolute");
-    			add_location(div5, file$9, 711, 8, 22510);
-    			attr_dev(div6, "class", "legendtext svelte-14bwum0");
+    			add_location(div5, file$3, 653, 8, 20945);
+    			attr_dev(div6, "class", "legendtext svelte-py7r4k");
     			set_style(div6, "text-align", "right");
     			set_style(div6, "width", "105px");
     			set_style(div6, "left", "-111px");
     			set_style(div6, "top", "4px");
     			set_style(div6, "position", "relative");
-    			add_location(div6, file$9, 720, 10, 23166);
+    			add_location(div6, file$3, 662, 10, 21601);
     			set_style(div7, "position", "absolute");
     			set_style(div7, "left", "0px");
     			set_style(div7, "top", "0px");
     			set_style(div7, "width", "180px");
     			set_style(div7, "height", "100px");
-    			add_location(div7, file$9, 706, 6, 22316);
-    			attr_dev(div8, "class", "legendtitle svelte-14bwum0");
-    			add_location(div8, file$9, 731, 10, 23620);
+    			add_location(div7, file$3, 648, 6, 20751);
+    			attr_dev(div8, "class", "legendtitle svelte-py7r4k");
+    			add_location(div8, file$3, 673, 10, 22055);
     			set_style(span3, "font-size", "12px");
     			set_style(span3, "padding-right", "3px");
     			set_style(span3, "color", "#CCC");
-    			add_location(span3, file$9, 734, 37, 23759);
-    			add_location(i2, file$9, 734, 106, 23828);
-    			attr_dev(div9, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div9, file$9, 734, 10, 23732);
+    			add_location(span3, file$3, 676, 37, 22194);
+    			add_location(i2, file$3, 676, 106, 22263);
+    			attr_dev(div9, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div9, file$3, 676, 10, 22167);
     			set_style(span4, "font-size", "12px");
     			set_style(span4, "padding-right", "2px");
     			set_style(span4, "color", "#CCC");
-    			add_location(span4, file$9, 736, 37, 23999);
-    			add_location(i3, file$9, 736, 106, 24068);
-    			attr_dev(div10, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div10, file$9, 736, 10, 23972);
+    			add_location(span4, file$3, 678, 37, 22434);
+    			add_location(i3, file$3, 678, 106, 22503);
+    			attr_dev(div10, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div10, file$3, 678, 10, 22407);
     			set_style(div11, "padding-top", "5px");
     			set_style(div11, "padding-bottom", "1px");
-    			add_location(div11, file$9, 733, 10, 23670);
-    			attr_dev(div12, "class", "legend svelte-14bwum0");
+    			add_location(div11, file$3, 675, 10, 22105);
+    			attr_dev(div12, "class", "legend svelte-py7r4k");
     			set_style(div12, "position", "absolute");
-    			add_location(div12, file$9, 730, 8, 23562);
-    			attr_dev(div13, "class", "legendtext svelte-14bwum0");
+    			add_location(div12, file$3, 672, 8, 21997);
+    			attr_dev(div13, "class", "legendtext svelte-py7r4k");
     			set_style(div13, "text-align", "right");
     			set_style(div13, "width", "105px");
     			set_style(div13, "left", "-111px");
     			set_style(div13, "top", "4px");
     			set_style(div13, "position", "relative");
-    			add_location(div13, file$9, 740, 8, 24210);
+    			add_location(div13, file$3, 682, 8, 22645);
     			set_style(div14, "position", "absolute");
     			set_style(div14, "left", "0px");
     			set_style(div14, "top", "" + legendheight*1 + "px");
     			set_style(div14, "width", "180px");
     			set_style(div14, "height", "100px");
-    			add_location(div14, file$9, 725, 6, 23356);
-    			attr_dev(div15, "class", "legendtitle svelte-14bwum0");
-    			add_location(div15, file$9, 751, 10, 24664);
+    			add_location(div14, file$3, 667, 6, 21791);
+    			attr_dev(div15, "class", "legendtitle svelte-py7r4k");
+    			add_location(div15, file$3, 693, 10, 23099);
     			set_style(span5, "font-size", "12px");
     			set_style(span5, "padding-right", "3px");
     			set_style(span5, "color", "#CCC");
-    			add_location(span5, file$9, 753, 37, 24803);
-    			add_location(i4, file$9, 753, 106, 24872);
-    			attr_dev(div16, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div16, file$9, 753, 10, 24776);
+    			add_location(span5, file$3, 695, 37, 23238);
+    			add_location(i4, file$3, 695, 106, 23307);
+    			attr_dev(div16, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div16, file$3, 695, 10, 23211);
     			set_style(span6, "font-size", "12px");
     			set_style(span6, "padding-right", "2px");
     			set_style(span6, "color", "#CCC");
-    			add_location(span6, file$9, 755, 37, 25043);
-    			add_location(i5, file$9, 755, 106, 25112);
-    			attr_dev(div17, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div17, file$9, 755, 10, 25016);
+    			add_location(span6, file$3, 697, 37, 23478);
+    			add_location(i5, file$3, 697, 106, 23547);
+    			attr_dev(div17, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div17, file$3, 697, 10, 23451);
     			set_style(div18, "padding-top", "5px");
     			set_style(div18, "padding-bottom", "1px");
-    			add_location(div18, file$9, 752, 10, 24714);
-    			attr_dev(div19, "class", "legend svelte-14bwum0");
+    			add_location(div18, file$3, 694, 10, 23149);
+    			attr_dev(div19, "class", "legend svelte-py7r4k");
     			set_style(div19, "position", "absolute");
-    			add_location(div19, file$9, 750, 8, 24606);
-    			add_location(i6, file$9, 759, 135, 25381);
-    			attr_dev(div20, "class", "legendtext svelte-14bwum0");
+    			add_location(div19, file$3, 692, 8, 23041);
+    			add_location(i6, file$3, 701, 135, 23816);
+    			attr_dev(div20, "class", "legendtext svelte-py7r4k");
     			set_style(div20, "text-align", "right");
     			set_style(div20, "width", "105px");
     			set_style(div20, "left", "-111px");
     			set_style(div20, "top", "4px");
     			set_style(div20, "position", "relative");
-    			add_location(div20, file$9, 759, 8, 25254);
+    			add_location(div20, file$3, 701, 8, 23689);
     			set_style(div21, "position", "absolute");
     			set_style(div21, "left", "0px");
     			set_style(div21, "top", "" + legendheight*2 + "px");
     			set_style(div21, "width", "180px");
     			set_style(div21, "height", "100px");
-    			add_location(div21, file$9, 745, 6, 24403);
-    			attr_dev(div22, "class", "legendtitle svelte-14bwum0");
-    			add_location(div22, file$9, 771, 10, 25783);
+    			add_location(div21, file$3, 687, 6, 22838);
+    			attr_dev(div22, "class", "legendtitle svelte-py7r4k");
+    			add_location(div22, file$3, 713, 10, 24218);
     			set_style(span7, "font-size", "12px");
     			set_style(span7, "padding-right", "3px");
     			set_style(span7, "color", "#CCC");
-    			add_location(span7, file$9, 773, 37, 25922);
-    			add_location(i7, file$9, 773, 106, 25991);
-    			attr_dev(div23, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div23, file$9, 773, 10, 25895);
+    			add_location(span7, file$3, 715, 37, 24357);
+    			add_location(i7, file$3, 715, 106, 24426);
+    			attr_dev(div23, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div23, file$3, 715, 10, 24330);
     			set_style(span8, "font-size", "12px");
     			set_style(span8, "padding-right", "2px");
     			set_style(span8, "color", "#CCC");
-    			add_location(span8, file$9, 775, 37, 26254);
-    			add_location(i8, file$9, 775, 106, 26323);
-    			attr_dev(div24, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div24, file$9, 775, 10, 26227);
+    			add_location(span8, file$3, 717, 37, 24689);
+    			add_location(i8, file$3, 717, 106, 24758);
+    			attr_dev(div24, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div24, file$3, 717, 10, 24662);
     			set_style(div25, "padding-top", "10px");
     			set_style(div25, "padding-bottom", "1px");
-    			add_location(div25, file$9, 772, 10, 25832);
-    			attr_dev(div26, "class", "legend svelte-14bwum0");
+    			add_location(div25, file$3, 714, 10, 24267);
+    			attr_dev(div26, "class", "legend svelte-py7r4k");
     			set_style(div26, "position", "absolute");
-    			add_location(div26, file$9, 770, 8, 25725);
-    			attr_dev(div27, "class", "legendtext svelte-14bwum0");
+    			add_location(div26, file$3, 712, 8, 24160);
+    			attr_dev(div27, "class", "legendtext svelte-py7r4k");
     			set_style(div27, "text-align", "right");
     			set_style(div27, "width", "105px");
     			set_style(div27, "left", "-111px");
     			set_style(div27, "top", "4x");
     			set_style(div27, "position", "relative");
-    			add_location(div27, file$9, 779, 8, 26540);
+    			add_location(div27, file$3, 721, 8, 24975);
     			set_style(div28, "position", "absolute");
     			set_style(div28, "left", "0px");
     			set_style(div28, "top", "" + legendheight*3 + "px");
     			set_style(div28, "width", "180px");
     			set_style(div28, "height", "100px");
-    			add_location(div28, file$9, 765, 6, 25461);
-    			attr_dev(div29, "class", "legendtitle svelte-14bwum0");
-    			add_location(div29, file$9, 788, 10, 27049);
+    			add_location(div28, file$3, 707, 6, 23896);
+    			attr_dev(div29, "class", "legendtitle svelte-py7r4k");
+    			add_location(div29, file$3, 730, 10, 25484);
     			set_style(span9, "font-size", "12px");
     			set_style(span9, "padding-right", "3px");
     			set_style(span9, "color", "#CCC");
-    			add_location(span9, file$9, 791, 37, 27190);
-    			add_location(i9, file$9, 791, 106, 27259);
-    			attr_dev(div30, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div30, file$9, 791, 10, 27163);
+    			add_location(span9, file$3, 733, 37, 25625);
+    			add_location(i9, file$3, 733, 106, 25694);
+    			attr_dev(div30, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div30, file$3, 733, 10, 25598);
     			set_style(div31, "padding-top", "3px");
     			set_style(div31, "padding-bottom", "1px");
-    			add_location(div31, file$9, 790, 10, 27101);
-    			attr_dev(div32, "class", "legend svelte-14bwum0");
+    			add_location(div31, file$3, 732, 10, 25536);
+    			attr_dev(div32, "class", "legend svelte-py7r4k");
     			set_style(div32, "position", "absolute");
-    			add_location(div32, file$9, 787, 8, 26991);
-    			attr_dev(div33, "class", "legendtext svelte-14bwum0");
+    			add_location(div32, file$3, 729, 8, 25426);
+    			attr_dev(div33, "class", "legendtext svelte-py7r4k");
     			set_style(div33, "text-align", "right");
     			set_style(div33, "width", "105px");
     			set_style(div33, "left", "-111px");
     			set_style(div33, "top", "8px");
     			set_style(div33, "position", "relative");
-    			add_location(div33, file$9, 795, 8, 27474);
+    			add_location(div33, file$3, 737, 8, 25909);
     			set_style(div34, "position", "absolute");
     			set_style(div34, "left", "0px");
     			set_style(div34, "top", "" + (legendheight*4+14-3) + "px");
     			set_style(div34, "width", "180px");
     			set_style(div34, "height", "100px");
-    			add_location(div34, file$9, 784, 6, 26759);
-    			attr_dev(div35, "class", "legendtitle svelte-14bwum0");
-    			add_location(div35, file$9, 804, 10, 27940);
+    			add_location(div34, file$3, 726, 6, 25194);
+    			attr_dev(div35, "class", "legendtitle svelte-py7r4k");
+    			add_location(div35, file$3, 746, 10, 26375);
     			set_style(span10, "font-size", "12px");
     			set_style(span10, "padding-right", "3px");
     			set_style(span10, "color", "#CCC");
-    			add_location(span10, file$9, 806, 37, 28083);
-    			add_location(i10, file$9, 806, 106, 28152);
-    			attr_dev(div36, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div36, file$9, 806, 10, 28056);
+    			add_location(span10, file$3, 748, 37, 26518);
+    			add_location(i10, file$3, 748, 106, 26587);
+    			attr_dev(div36, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div36, file$3, 748, 10, 26491);
     			set_style(div37, "padding-top", "3px");
     			set_style(div37, "padding-bottom", "1px");
-    			add_location(div37, file$9, 805, 10, 27994);
+    			add_location(div37, file$3, 747, 10, 26429);
     			set_style(span11, "font-size", "12px");
     			set_style(span11, "padding-right", "2px");
     			set_style(span11, "color", "#CCC");
-    			add_location(span11, file$9, 809, 37, 28381);
-    			add_location(i11, file$9, 809, 106, 28450);
-    			attr_dev(div38, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div38, file$9, 809, 10, 28354);
-    			attr_dev(div39, "class", "legend svelte-14bwum0");
+    			add_location(span11, file$3, 751, 37, 26816);
+    			add_location(i11, file$3, 751, 106, 26885);
+    			attr_dev(div38, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div38, file$3, 751, 10, 26789);
+    			attr_dev(div39, "class", "legend svelte-py7r4k");
     			set_style(div39, "position", "absolute");
-    			add_location(div39, file$9, 803, 8, 27882);
-    			attr_dev(div40, "class", "legendtext svelte-14bwum0");
+    			add_location(div39, file$3, 745, 8, 26317);
+    			attr_dev(div40, "class", "legendtext svelte-py7r4k");
     			set_style(div40, "text-align", "right");
     			set_style(div40, "width", "105px");
     			set_style(div40, "left", "-111px");
     			set_style(div40, "top", "10px");
     			set_style(div40, "position", "relative");
-    			add_location(div40, file$9, 812, 8, 28595);
+    			add_location(div40, file$3, 754, 8, 27030);
     			set_style(div41, "position", "absolute");
     			set_style(div41, "left", "0px");
     			set_style(div41, "top", "" + (legendheight*4+57) + "px");
     			set_style(div41, "width", "180px");
     			set_style(div41, "height", "100px");
-    			add_location(div41, file$9, 800, 6, 27652);
-    			attr_dev(div42, "class", "legendtitle svelte-14bwum0");
-    			add_location(div42, file$9, 822, 10, 29049);
+    			add_location(div41, file$3, 742, 6, 26087);
+    			attr_dev(div42, "class", "legendtitle svelte-py7r4k");
+    			add_location(div42, file$3, 764, 10, 27484);
     			set_style(span12, "font-size", "12px");
     			set_style(span12, "padding-right", "3px");
     			set_style(span12, "color", "#CCC");
-    			add_location(span12, file$9, 824, 37, 29200);
-    			add_location(i12, file$9, 824, 106, 29269);
-    			attr_dev(div43, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div43, file$9, 824, 10, 29173);
+    			add_location(span12, file$3, 766, 37, 27635);
+    			add_location(i12, file$3, 766, 106, 27704);
+    			attr_dev(div43, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div43, file$3, 766, 10, 27608);
     			set_style(span13, "font-size", "12px");
     			set_style(span13, "padding-right", "2px");
     			set_style(span13, "color", "#CCC");
-    			add_location(span13, file$9, 826, 37, 29440);
-    			add_location(i13, file$9, 826, 106, 29509);
-    			attr_dev(div44, "class", "legendtextnum svelte-14bwum0");
-    			add_location(div44, file$9, 826, 10, 29413);
+    			add_location(span13, file$3, 768, 37, 27875);
+    			add_location(i13, file$3, 768, 106, 27944);
+    			attr_dev(div44, "class", "legendtextnum svelte-py7r4k");
+    			add_location(div44, file$3, 768, 10, 27848);
     			set_style(div45, "padding-top", "3px");
     			set_style(div45, "padding-bottom", "1px");
-    			add_location(div45, file$9, 823, 10, 29101);
-    			attr_dev(div46, "class", "legend svelte-14bwum0");
+    			add_location(div45, file$3, 765, 10, 27536);
+    			attr_dev(div46, "class", "legend svelte-py7r4k");
     			set_style(div46, "position", "absolute");
-    			add_location(div46, file$9, 821, 8, 28991);
-    			attr_dev(div47, "class", "legendtext svelte-14bwum0");
+    			add_location(div46, file$3, 763, 8, 27426);
+    			attr_dev(div47, "class", "legendtext svelte-py7r4k");
     			set_style(div47, "text-align", "right");
     			set_style(div47, "width", "105px");
     			set_style(div47, "left", "-111px");
     			set_style(div47, "top", "10px");
     			set_style(div47, "position", "relative");
-    			add_location(div47, file$9, 830, 8, 29651);
+    			add_location(div47, file$3, 772, 8, 28086);
     			set_style(div48, "position", "absolute");
     			set_style(div48, "left", "0px");
     			set_style(div48, "top", "" + (legendheight*4 + 120+2) + "px");
     			set_style(div48, "width", "180px");
     			set_style(div48, "height", "100px");
-    			add_location(div48, file$9, 816, 6, 28754);
+    			add_location(div48, file$3, 758, 6, 27189);
     			set_style(div49, "position", "relative");
     			set_style(div49, "top", "48px");
     			set_style(div49, "right", "-115px");
-    			add_location(div49, file$9, 702, 4, 21988);
+    			add_location(div49, file$3, 644, 4, 20423);
     			set_style(div50, "flex", "0 0 270px");
     			set_style(div50, "width", "270px");
-    			add_location(div50, file$9, 701, 2, 21940);
+    			add_location(div50, file$3, 643, 2, 20375);
     			attr_dev(div51, "id", "xAxisDrag");
     			set_style(div51, "pointer-events", "all");
     			set_style(div51, "position", "absolute");
@@ -29377,7 +25269,7 @@
     			set_style(div51, "opacity", "0");
     			set_style(div51, "height", "25px");
     			set_style(div51, "cursor", "col-resize");
-    			add_location(div51, file$9, 869, 6, 30759);
+    			add_location(div51, file$3, 811, 6, 29194);
     			attr_dev(div52, "id", "yAxisDrag");
     			set_style(div52, "pointer-events", "all");
     			set_style(div52, "position", "absolute");
@@ -29388,34 +25280,34 @@
     			set_style(div52, "opacity", "0");
     			set_style(div52, "height", "425px");
     			set_style(div52, "cursor", "row-resize");
-    			add_location(div52, file$9, 881, 6, 31116);
+    			add_location(div52, file$3, 823, 6, 29551);
     			set_style(span14, "font-size", "13px");
-    			add_location(span14, file$9, 908, 8, 32284);
+    			add_location(span14, file$3, 850, 8, 30719);
     			set_style(div53, "position", "absolute");
     			set_style(div53, "opacity", "0.5");
     			set_style(div53, "top", "-5px");
     			set_style(div53, "left", "10px");
     			set_style(div53, "width", "120px");
-    			add_location(div53, file$9, 907, 8, 32195);
-    			attr_dev(div54, "class", "paneltitle svelte-14bwum0");
+    			add_location(div53, file$3, 849, 8, 30630);
+    			attr_dev(div54, "class", "paneltitle svelte-py7r4k");
     			set_style(div54, "top", "9px");
     			set_style(div54, "position", "relative");
     			set_style(div54, "text-align", "right");
-    			add_location(div54, file$9, 918, 10, 32924);
-    			add_location(span15, file$9, 919, 10, 33071);
+    			add_location(div54, file$3, 860, 10, 31359);
+    			add_location(span15, file$3, 861, 10, 31506);
     			set_style(div55, "top", "9px");
     			set_style(div55, "position", "relative");
     			set_style(div55, "text-align", "right");
-    			add_location(div55, file$9, 919, 23, 33084);
+    			add_location(div55, file$3, 861, 23, 31519);
     			attr_dev(path, "d", "M2 11h16v2H2zm0-4h16v2H2zm8 11l3-3H7l3 3zm0-16L7 5h6l-3-3z");
-    			add_location(path, file$9, 925, 18, 33443);
+    			add_location(path, file$3, 867, 18, 31878);
     			attr_dev(g0, "transform", "translate(0,-20)");
-    			add_location(g0, file$9, 924, 16, 33392);
+    			add_location(g0, file$3, 866, 16, 31827);
     			attr_dev(g1, "transform", "rotate(90)");
-    			add_location(g1, file$9, 923, 14, 33349);
+    			add_location(g1, file$3, 865, 14, 31784);
     			attr_dev(svg, "width", "20");
     			attr_dev(svg, "height", "20");
-    			add_location(svg, file$9, 922, 12, 33306);
+    			add_location(svg, file$3, 864, 12, 31741);
     			set_style(div56, "top", "43px");
     			set_style(div56, "left", "40px");
     			set_style(div56, "position", "absolute");
@@ -29423,9 +25315,9 @@
     			set_style(div56, "width", "20px");
     			set_style(div56, "height", "20px");
     			set_style(div56, "opacity", "0.3");
-    			add_location(div56, file$9, 921, 10, 33181);
+    			add_location(div56, file$3, 863, 10, 31616);
     			attr_dev(div57, "id", "interventionDrag");
-    			attr_dev(div57, "class", "legendtext svelte-14bwum0");
+    			attr_dev(div57, "class", "legendtext svelte-py7r4k");
     			set_style(div57, "flex", "0 0 160px");
     			set_style(div57, "width", "120px");
     			set_style(div57, "position", "relative");
@@ -29435,7 +25327,7 @@
     			set_style(div57, "left", "-125px");
     			set_style(div57, "pointer-events", "all");
     			set_style(div57, "cursor", "col-resize");
-    			add_location(div57, file$9, 917, 8, 32709);
+    			add_location(div57, file$3, 859, 8, 31144);
     			set_style(div58, "width", "150px");
     			set_style(div58, "position", "relative");
     			set_style(div58, "top", "-85px");
@@ -29445,7 +25337,7 @@
     			set_style(div58, "cursor", "col-resize");
     			set_style(div58, "background-color", "white");
     			set_style(div58, "position", "absolute");
-    			add_location(div58, file$9, 933, 8, 33618);
+    			add_location(div58, file$3, 875, 8, 32053);
     			attr_dev(div59, "id", "dottedline");
     			set_style(div59, "pointer-events", "all");
     			set_style(div59, "position", "absolute");
@@ -29458,7 +25350,7 @@
     			set_style(div59, "pointer-events", "all");
     			set_style(div59, "cursor", "col-resize");
     			set_style(div59, "height", "" + (height$1+19) + "px");
-    			add_location(div59, file$9, 895, 8, 31644);
+    			add_location(div59, file$3, 837, 8, 30079);
     			set_style(div60, "position", "absolute");
     			set_style(div60, "width", "" + (width$1+15) + "px");
     			set_style(div60, "height", "" + height$1 + "px");
@@ -29466,25 +25358,25 @@
     			set_style(div60, "top", "100px");
     			set_style(div60, "left", "10px");
     			set_style(div60, "pointer-events", "none");
-    			add_location(div60, file$9, 894, 6, 31499);
-    			add_location(br1, file$9, 956, 64, 34831);
-    			attr_dev(div61, "class", "paneldesc svelte-14bwum0");
-    			add_location(div61, file$9, 956, 14, 34781);
-    			attr_dev(div62, "class", "paneltext svelte-14bwum0");
+    			add_location(div60, file$3, 836, 6, 29934);
+    			add_location(br1, file$3, 898, 64, 33266);
+    			attr_dev(div61, "class", "paneldesc svelte-py7r4k");
+    			add_location(div61, file$3, 898, 14, 33216);
+    			attr_dev(div62, "class", "paneltext svelte-py7r4k");
     			set_style(div62, "height", "20px");
     			set_style(div62, "text-align", "right");
-    			add_location(div62, file$9, 955, 14, 34703);
-    			attr_dev(div63, "class", "slidertext svelte-14bwum0");
-    			add_location(div63, file$9, 959, 14, 34925);
-    			attr_dev(input0, "class", "range svelte-14bwum0");
+    			add_location(div62, file$3, 897, 14, 33138);
+    			attr_dev(div63, "class", "slidertext svelte-py7r4k");
+    			add_location(div63, file$3, 901, 14, 33360);
+    			attr_dev(input0, "class", "range svelte-py7r4k");
     			attr_dev(input0, "type", "range");
     			attr_dev(input0, "min", "0");
     			attr_dev(input0, "max", "1");
     			attr_dev(input0, "step", "0.01");
-    			add_location(input0, file$9, 960, 14, 35026);
+    			add_location(input0, file$3, 902, 14, 33461);
     			set_style(div64, "pointer-events", "all");
-    			add_location(div64, file$9, 958, 14, 34877);
-    			attr_dev(div65, "class", "caption svelte-14bwum0");
+    			add_location(div64, file$3, 900, 14, 33312);
+    			attr_dev(div65, "class", "caption svelte-py7r4k");
     			set_style(div65, "pointer-events", "none");
     			set_style(div65, "position", "absolute");
     			set_style(div65, "left", "0");
@@ -29492,13 +25384,13 @@
     			set_style(div65, "width", "150px");
     			set_style(div65, "border-left", "2px solid #777");
     			set_style(div65, "padding", "5px 7px 7px 7px");
-    			add_location(div65, file$9, 954, 14, 34524);
+    			add_location(div65, file$3, 896, 14, 32959);
     			set_style(div66, "flex", "0 0 160px");
     			set_style(div66, "width", "200px");
     			set_style(div66, "position", "relative");
     			set_style(div66, "top", "-125px");
     			set_style(div66, "left", "1px");
-    			add_location(div66, file$9, 953, 12, 34424);
+    			add_location(div66, file$3, 895, 12, 32859);
     			set_style(div67, "position", "absolute");
     			set_style(div67, "top", "-38px");
     			set_style(div67, "left", "" + ctx.xScaleTime(ctx.InterventionTime) + "px");
@@ -29508,7 +25400,7 @@
     			set_style(div67, "border-right", "1px dashed black");
     			set_style(div67, "cursor", "col-resize");
     			set_style(div67, "height", "" + height$1 + "px");
-    			add_location(div67, file$9, 943, 8, 34023);
+    			add_location(div67, file$3, 885, 8, 32458);
     			set_style(div68, "position", "absolute");
     			set_style(div68, "width", "" + (width$1+15) + "px");
     			set_style(div68, "height", "" + height$1 + "px");
@@ -29516,638 +25408,638 @@
     			set_style(div68, "top", "120px");
     			set_style(div68, "left", "10px");
     			set_style(div68, "pointer-events", "none");
-    			add_location(div68, file$9, 942, 6, 33878);
-    			attr_dev(div69, "class", "country svelte-14bwum0");
-    			add_location(div69, file$9, 980, 2, 35847);
-    			attr_dev(div70, "class", "population svelte-14bwum0");
-    			add_location(div70, file$9, 988, 9, 36021);
-    			attr_dev(div71, "class", "confirmed svelte-14bwum0");
-    			add_location(div71, file$9, 990, 4, 36292);
-    			attr_dev(div72, "class", "fatalities svelte-14bwum0");
+    			add_location(div68, file$3, 884, 6, 32313);
+    			attr_dev(div69, "class", "country svelte-py7r4k");
+    			add_location(div69, file$3, 920, 2, 34288);
+    			attr_dev(div70, "class", "population svelte-py7r4k");
+    			add_location(div70, file$3, 922, 9, 34530);
+    			attr_dev(div71, "class", "confirmed svelte-py7r4k");
+    			add_location(div71, file$3, 924, 4, 34606);
+    			attr_dev(div72, "class", "fatalities svelte-py7r4k");
     			set_style(div72, "margin-bottom", "5pt");
-    			add_location(div72, file$9, 996, 7, 36415);
-    			attr_dev(div73, "class", "country svelte-14bwum0");
+    			add_location(div72, file$3, 930, 7, 34729);
+    			attr_dev(div73, "class", "country svelte-py7r4k");
     			set_style(div73, "margin-top", "20px");
     			set_style(div73, "margin-bottom", "10px");
-    			add_location(div73, file$9, 1002, 5, 36567);
-    			attr_dev(button0, "class", "strategy svelte-14bwum0");
-    			add_location(button0, file$9, 1004, 54, 36745);
+    			add_location(div73, file$3, 936, 5, 34881);
+    			attr_dev(button0, "class", "strategy svelte-py7r4k");
+    			add_location(button0, file$3, 938, 54, 35059);
     			set_style(div74, "position", "relative");
     			set_style(div74, "left", "0px");
     			set_style(div74, "top", "0px");
-    			add_location(div74, file$9, 1004, 5, 36696);
-    			attr_dev(button1, "class", "strategy svelte-14bwum0");
-    			add_location(button1, file$9, 1005, 57, 36889);
+    			add_location(div74, file$3, 938, 5, 35010);
+    			attr_dev(button1, "class", "strategy svelte-py7r4k");
+    			add_location(button1, file$3, 939, 57, 35203);
     			set_style(div75, "position", "relative");
     			set_style(div75, "left", "90px");
     			set_style(div75, "top", "-25px");
-    			add_location(div75, file$9, 1005, 5, 36837);
-    			attr_dev(button2, "class", "strategy svelte-14bwum0");
-    			add_location(button2, file$9, 1006, 58, 37038);
+    			add_location(div75, file$3, 939, 5, 35151);
+    			attr_dev(button2, "class", "strategy svelte-py7r4k");
+    			add_location(button2, file$3, 940, 58, 35352);
     			set_style(div76, "position", "relative");
     			set_style(div76, "left", "180px");
     			set_style(div76, "top", "-50px");
-    			add_location(div76, file$9, 1006, 5, 36985);
+    			add_location(div76, file$3, 940, 5, 35299);
     			set_style(div77, "width", "100px");
     			set_style(div77, "height", "30px");
-    			add_location(div77, file$9, 1003, 5, 36652);
-    			attr_dev(div78, "class", "country svelte-14bwum0");
+    			add_location(div77, file$3, 937, 5, 34966);
+    			attr_dev(div78, "class", "country svelte-py7r4k");
     			set_style(div78, "margin-top", "20px");
     			set_style(div78, "margin-bottom", "10px");
-    			add_location(div78, file$9, 1010, 8, 37159);
-    			attr_dev(div79, "class", "confirmed svelte-14bwum0");
-    			add_location(div79, file$9, 1012, 5, 37256);
-    			attr_dev(div80, "class", "fatalities svelte-14bwum0");
-    			add_location(div80, file$9, 1014, 5, 37363);
+    			add_location(div78, file$3, 944, 8, 35473);
+    			attr_dev(div79, "class", "confirmed svelte-py7r4k");
+    			add_location(div79, file$3, 946, 5, 35570);
+    			attr_dev(div80, "class", "fatalities svelte-py7r4k");
+    			add_location(div80, file$3, 948, 5, 35677);
     			set_style(div81, "position", "absolute");
     			set_style(div81, "top", "0px");
     			set_style(div81, "left", "0px");
     			set_style(div81, "margin", "0px 0px 5px 4px");
-    			attr_dev(div81, "class", "countrybox svelte-14bwum0");
-    			add_location(div81, file$9, 979, 7, 35747);
+    			attr_dev(div81, "class", "countrybox svelte-py7r4k");
+    			add_location(div81, file$3, 919, 7, 34188);
     			set_style(div82, "position", "absolute");
     			set_style(div82, "top", "50px");
     			set_style(div82, "left", "500px");
     			set_style(div82, "width", "300px");
     			set_style(div82, "height", "300px");
-    			add_location(div82, file$9, 978, 5, 35654);
+    			add_location(div82, file$3, 918, 5, 34095);
     			set_style(div83, "position", "relative");
     			set_style(div83, "left", "20px");
     			set_style(div83, "top", "5px");
-    			add_location(div83, file$9, 1084, 56, 41044);
-    			attr_dev(div84, "class", "tick svelte-14bwum0");
+    			add_location(div83, file$3, 1018, 56, 39358);
+    			attr_dev(div84, "class", "tick svelte-py7r4k");
     			set_style(div84, "color", "#555");
     			set_style(div84, "pointer-events", "all");
     			set_style(div84, "position", "relative");
     			set_style(div84, "top", "0px");
-    			add_location(div84, file$9, 1083, 3, 40899);
+    			add_location(div84, file$3, 1017, 3, 39213);
     			set_style(div85, "position", "absolute");
     			set_style(div85, "top", "80px");
     			set_style(div85, "left", "20px");
     			set_style(div85, "margin", "0px 0px 5px 4px");
-    			attr_dev(div85, "class", "countrybox svelte-14bwum0");
-    			add_location(div85, file$9, 1082, 9, 40796);
+    			attr_dev(div85, "class", "countrybox svelte-py7r4k");
+    			add_location(div85, file$3, 1016, 9, 39110);
     			set_style(div86, "position", "relative");
     			set_style(div86, "left", "20px");
     			set_style(div86, "top", "5px");
     			set_style(div86, "width", "140px");
-    			add_location(div86, file$9, 1091, 6, 41414);
-    			attr_dev(div87, "class", "tick svelte-14bwum0");
+    			add_location(div86, file$3, 1025, 6, 39728);
+    			attr_dev(div87, "class", "tick svelte-py7r4k");
     			set_style(div87, "color", "#555");
     			set_style(div87, "pointer-events", "all");
     			set_style(div87, "position", "absolute");
     			set_style(div87, "top", "0px");
-    			add_location(div87, file$9, 1089, 3, 41258);
+    			add_location(div87, file$3, 1023, 3, 39572);
     			set_style(div88, "position", "relative");
     			set_style(div88, "left", "20px");
     			set_style(div88, "top", "5px");
-    			add_location(div88, file$9, 1096, 60, 41712);
-    			attr_dev(div89, "class", "tick svelte-14bwum0");
+    			add_location(div88, file$3, 1030, 60, 40026);
+    			attr_dev(div89, "class", "tick svelte-py7r4k");
     			set_style(div89, "color", "#555");
     			set_style(div89, "pointer-events", "all");
     			set_style(div89, "position", "absolute");
     			set_style(div89, "top", "0px");
     			set_style(div89, "left", "170px");
-    			add_location(div89, file$9, 1095, 10, 41550);
+    			add_location(div89, file$3, 1029, 10, 39864);
     			set_style(div90, "position", "absolute");
     			set_style(div90, "top", "-20px");
     			set_style(div90, "left", "-250px");
     			set_style(div90, "margin", "0px 0px 5px 4px");
-    			attr_dev(div90, "class", "countrybox svelte-14bwum0");
-    			add_location(div90, file$9, 1088, 15, 41153);
+    			attr_dev(div90, "class", "countrybox svelte-py7r4k");
+    			add_location(div90, file$3, 1022, 15, 39467);
     			set_style(div91, "flex", "0 0 890px");
     			set_style(div91, "width", "890px");
     			set_style(div91, "height", "" + (height$1+128) + "px");
     			set_style(div91, "position", "relative");
-    			add_location(div91, file$9, 835, 2, 29808);
-    			attr_dev(div92, "class", "chart svelte-14bwum0");
+    			add_location(div91, file$3, 777, 2, 28243);
+    			attr_dev(div92, "class", "chart svelte-py7r4k");
     			set_style(div92, "display", "flex");
     			set_style(div92, "max-width", "1120px");
-    			add_location(div92, file$9, 699, 0, 21876);
+    			add_location(div92, file$3, 641, 0, 20311);
     			set_style(div93, "margin", "0px 0px 5px 4px");
-    			attr_dev(div93, "class", "minorTitleColumn svelte-14bwum0");
-    			add_location(div93, file$9, 1106, 4, 41880);
+    			attr_dev(div93, "class", "minorTitleColumn svelte-py7r4k");
+    			add_location(div93, file$3, 1040, 4, 40194);
     			set_style(div94, "flex", "0 0 20");
     			set_style(div94, "width", "20px");
-    			add_location(div94, file$9, 1107, 4, 41974);
+    			add_location(div94, file$3, 1041, 4, 40288);
     			set_style(div95, "margin", "0px 4px 5px 0px");
-    			attr_dev(div95, "class", "minorTitleColumn svelte-14bwum0");
-    			add_location(div95, file$9, 1108, 4, 42023);
-    			attr_dev(div96, "class", "minorTitle svelte-14bwum0");
-    			add_location(div96, file$9, 1105, 2, 41851);
-    			attr_dev(div97, "class", "paneltitle svelte-14bwum0");
-    			add_location(div97, file$9, 1113, 6, 42172);
-    			add_location(br2, file$9, 1114, 78, 42289);
-    			attr_dev(div98, "class", "paneldesc svelte-14bwum0");
+    			attr_dev(div95, "class", "minorTitleColumn svelte-py7r4k");
+    			add_location(div95, file$3, 1042, 4, 40337);
+    			attr_dev(div96, "class", "minorTitle svelte-py7r4k");
+    			add_location(div96, file$3, 1039, 2, 40165);
+    			attr_dev(div97, "class", "paneltitle svelte-py7r4k");
+    			add_location(div97, file$3, 1047, 6, 40486);
+    			add_location(br2, file$3, 1048, 78, 40603);
+    			attr_dev(div98, "class", "paneldesc svelte-py7r4k");
     			set_style(div98, "height", "30px");
-    			add_location(div98, file$9, 1114, 6, 42217);
-    			attr_dev(div99, "class", "slidertext svelte-14bwum0");
-    			add_location(div99, file$9, 1115, 6, 42306);
-    			attr_dev(input1, "class", "range svelte-14bwum0");
+    			add_location(div98, file$3, 1048, 6, 40531);
+    			attr_dev(div99, "class", "slidertext svelte-py7r4k");
+    			add_location(div99, file$3, 1049, 6, 40620);
+    			attr_dev(input1, "class", "range svelte-py7r4k");
     			set_style(input1, "margin-bottom", "8px");
     			attr_dev(input1, "type", "range");
     			attr_dev(input1, "min", 0);
     			attr_dev(input1, "max", "60");
     			attr_dev(input1, "step", "1");
-    			add_location(input1, file$9, 1116, 6, 42372);
-    			add_location(br3, file$9, 1117, 125, 42599);
-    			attr_dev(div100, "class", "paneldesc svelte-14bwum0");
+    			add_location(input1, file$3, 1050, 6, 40686);
+    			add_location(br3, file$3, 1051, 125, 40913);
+    			attr_dev(div100, "class", "paneldesc svelte-py7r4k");
     			set_style(div100, "height", "29px");
     			set_style(div100, "border-top", "1px solid #EEE");
     			set_style(div100, "padding-top", "10px");
-    			add_location(div100, file$9, 1117, 6, 42480);
-    			attr_dev(div101, "class", "slidertext svelte-14bwum0");
-    			add_location(div101, file$9, 1118, 6, 42616);
-    			attr_dev(input2, "class", "range svelte-14bwum0");
+    			add_location(div100, file$3, 1051, 6, 40794);
+    			attr_dev(div101, "class", "slidertext svelte-py7r4k");
+    			add_location(div101, file$3, 1052, 6, 40930);
+    			attr_dev(input2, "class", "range svelte-py7r4k");
     			attr_dev(input2, "type", "range");
     			attr_dev(input2, "min", 1);
     			attr_dev(input2, "max", "10000");
     			attr_dev(input2, "step", "1");
-    			add_location(input2, file$9, 1119, 6, 42657);
-    			attr_dev(div102, "class", "column svelte-14bwum0");
-    			add_location(div102, file$9, 1112, 4, 42145);
+    			add_location(input2, file$3, 1053, 6, 40971);
+    			attr_dev(div102, "class", "column svelte-py7r4k");
+    			add_location(div102, file$3, 1046, 4, 40459);
     			html_tag = new HtmlTag(raw1_value, null);
-    			attr_dev(div103, "class", "paneltitle svelte-14bwum0");
-    			add_location(div103, file$9, 1124, 6, 42804);
-    			add_location(br4, file$9, 1125, 126, 43025);
-    			attr_dev(div104, "class", "paneldesc svelte-14bwum0");
-    			add_location(div104, file$9, 1125, 6, 42905);
-    			attr_dev(div105, "class", "paneltext svelte-14bwum0");
-    			add_location(div105, file$9, 1123, 6, 42774);
-    			attr_dev(div106, "class", "slidertext svelte-14bwum0");
-    			add_location(div106, file$9, 1127, 6, 43055);
-    			attr_dev(input3, "class", "range svelte-14bwum0");
+    			attr_dev(div103, "class", "paneltitle svelte-py7r4k");
+    			add_location(div103, file$3, 1058, 6, 41118);
+    			add_location(br4, file$3, 1059, 126, 41339);
+    			attr_dev(div104, "class", "paneldesc svelte-py7r4k");
+    			add_location(div104, file$3, 1059, 6, 41219);
+    			attr_dev(div105, "class", "paneltext svelte-py7r4k");
+    			add_location(div105, file$3, 1057, 6, 41088);
+    			attr_dev(div106, "class", "slidertext svelte-py7r4k");
+    			add_location(div106, file$3, 1061, 6, 41369);
+    			attr_dev(input3, "class", "range svelte-py7r4k");
     			attr_dev(input3, "type", "range");
     			attr_dev(input3, "min", "0.01");
     			attr_dev(input3, "max", "10");
     			attr_dev(input3, "step", "0.01");
-    			add_location(input3, file$9, 1128, 6, 43096);
-    			attr_dev(div107, "class", "column svelte-14bwum0");
-    			add_location(div107, file$9, 1122, 4, 42747);
-    			attr_dev(div108, "class", "paneltitle svelte-14bwum0");
-    			add_location(div108, file$9, 1132, 6, 43215);
-    			html_tag_1 = new HtmlTag(raw2_value, t208);
-    			add_location(br5, file$9, 1133, 117, 43381);
-    			attr_dev(div109, "class", "paneldesc svelte-14bwum0");
+    			add_location(input3, file$3, 1062, 6, 41410);
+    			attr_dev(div107, "class", "column svelte-py7r4k");
+    			add_location(div107, file$3, 1056, 4, 41061);
+    			attr_dev(div108, "class", "paneltitle svelte-py7r4k");
+    			add_location(div108, file$3, 1066, 6, 41529);
+    			html_tag_1 = new HtmlTag(raw2_value, t209);
+    			add_location(br5, file$3, 1067, 117, 41695);
+    			attr_dev(div109, "class", "paneldesc svelte-py7r4k");
     			set_style(div109, "height", "30px");
-    			add_location(div109, file$9, 1133, 6, 43270);
-    			attr_dev(div110, "class", "slidertext svelte-14bwum0");
-    			add_location(div110, file$9, 1134, 6, 43398);
-    			attr_dev(input4, "class", "range svelte-14bwum0");
+    			add_location(div109, file$3, 1067, 6, 41584);
+    			attr_dev(div110, "class", "slidertext svelte-py7r4k");
+    			add_location(div110, file$3, 1068, 6, 41712);
+    			attr_dev(input4, "class", "range svelte-py7r4k");
     			set_style(input4, "margin-bottom", "8px");
     			attr_dev(input4, "type", "range");
     			attr_dev(input4, "min", 0.15);
     			attr_dev(input4, "max", "24");
     			attr_dev(input4, "step", "0.0001");
-    			add_location(input4, file$9, 1135, 6, 43466);
-    			html_tag_2 = new HtmlTag(raw3_value, t215);
-    			add_location(br6, file$9, 1136, 167, 43747);
-    			attr_dev(div111, "class", "paneldesc svelte-14bwum0");
+    			add_location(input4, file$3, 1069, 6, 41780);
+    			html_tag_2 = new HtmlTag(raw3_value, t216);
+    			add_location(br6, file$3, 1070, 167, 42061);
+    			attr_dev(div111, "class", "paneldesc svelte-py7r4k");
     			set_style(div111, "height", "29px");
     			set_style(div111, "border-top", "1px solid #EEE");
     			set_style(div111, "padding-top", "10px");
-    			add_location(div111, file$9, 1136, 6, 43586);
-    			attr_dev(div112, "class", "slidertext svelte-14bwum0");
-    			add_location(div112, file$9, 1137, 6, 43764);
-    			attr_dev(input5, "class", "range svelte-14bwum0");
+    			add_location(div111, file$3, 1070, 6, 41900);
+    			attr_dev(div112, "class", "slidertext svelte-py7r4k");
+    			add_location(div112, file$3, 1071, 6, 42078);
+    			attr_dev(input5, "class", "range svelte-py7r4k");
     			attr_dev(input5, "type", "range");
     			attr_dev(input5, "min", 0);
     			attr_dev(input5, "max", "24");
     			attr_dev(input5, "step", "0.01");
-    			add_location(input5, file$9, 1138, 6, 43820);
-    			attr_dev(div113, "class", "column svelte-14bwum0");
-    			add_location(div113, file$9, 1131, 4, 43188);
+    			add_location(input5, file$3, 1072, 6, 42134);
+    			attr_dev(div113, "class", "column svelte-py7r4k");
+    			add_location(div113, file$3, 1065, 4, 41502);
     			set_style(div114, "flex", "0 0 20");
     			set_style(div114, "width", "20px");
-    			add_location(div114, file$9, 1141, 4, 43920);
-    			attr_dev(div115, "class", "paneltitle svelte-14bwum0");
-    			add_location(div115, file$9, 1144, 6, 43997);
-    			add_location(br7, file$9, 1145, 68, 44116);
-    			attr_dev(div116, "class", "paneldesc svelte-14bwum0");
+    			add_location(div114, file$3, 1075, 4, 42234);
+    			attr_dev(div115, "class", "paneltitle svelte-py7r4k");
+    			add_location(div115, file$3, 1078, 6, 42311);
+    			add_location(br7, file$3, 1079, 68, 42430);
+    			attr_dev(div116, "class", "paneldesc svelte-py7r4k");
     			set_style(div116, "height", "30px");
-    			add_location(div116, file$9, 1145, 6, 44054);
-    			attr_dev(div117, "class", "slidertext svelte-14bwum0");
-    			add_location(div117, file$9, 1146, 6, 44133);
-    			attr_dev(input6, "class", "range svelte-14bwum0");
+    			add_location(div116, file$3, 1079, 6, 42368);
+    			attr_dev(div117, "class", "slidertext svelte-py7r4k");
+    			add_location(div117, file$3, 1080, 6, 42447);
+    			attr_dev(input6, "class", "range svelte-py7r4k");
     			set_style(input6, "margin-bottom", "8px");
     			attr_dev(input6, "type", "range");
     			attr_dev(input6, "min", 0);
     			attr_dev(input6, "max", "1");
     			attr_dev(input6, "step", "0.0001");
-    			add_location(input6, file$9, 1147, 6, 44194);
-    			add_location(br8, file$9, 1148, 133, 44430);
-    			attr_dev(div118, "class", "paneldesc svelte-14bwum0");
+    			add_location(input6, file$3, 1081, 6, 42508);
+    			add_location(br8, file$3, 1082, 133, 42744);
+    			attr_dev(div118, "class", "paneldesc svelte-py7r4k");
     			set_style(div118, "height", "29px");
     			set_style(div118, "border-top", "1px solid #EEE");
     			set_style(div118, "padding-top", "10px");
-    			add_location(div118, file$9, 1148, 6, 44303);
-    			attr_dev(div119, "class", "slidertext svelte-14bwum0");
-    			add_location(div119, file$9, 1149, 6, 44447);
-    			attr_dev(input7, "class", "range svelte-14bwum0");
+    			add_location(div118, file$3, 1082, 6, 42617);
+    			attr_dev(div119, "class", "slidertext svelte-py7r4k");
+    			add_location(div119, file$3, 1083, 6, 42761);
+    			attr_dev(input7, "class", "range svelte-py7r4k");
     			attr_dev(input7, "type", "range");
     			attr_dev(input7, "min", input7_min_value = (ctx.D_infectious)+0.1);
     			attr_dev(input7, "max", "100");
     			attr_dev(input7, "step", "0.01");
-    			add_location(input7, file$9, 1150, 6, 44504);
-    			attr_dev(div120, "class", "column svelte-14bwum0");
-    			add_location(div120, file$9, 1143, 4, 43970);
-    			attr_dev(div121, "class", "paneltitle svelte-14bwum0");
-    			add_location(div121, file$9, 1154, 6, 44650);
-    			add_location(br9, file$9, 1155, 72, 44767);
-    			attr_dev(div122, "class", "paneldesc svelte-14bwum0");
+    			add_location(input7, file$3, 1084, 6, 42818);
+    			attr_dev(div120, "class", "column svelte-py7r4k");
+    			add_location(div120, file$3, 1077, 4, 42284);
+    			attr_dev(div121, "class", "paneltitle svelte-py7r4k");
+    			add_location(div121, file$3, 1088, 6, 42964);
+    			add_location(br9, file$3, 1089, 72, 43081);
+    			attr_dev(div122, "class", "paneldesc svelte-py7r4k");
     			set_style(div122, "height", "30px");
-    			add_location(div122, file$9, 1155, 6, 44701);
-    			attr_dev(div123, "class", "slidertext svelte-14bwum0");
-    			add_location(div123, file$9, 1156, 6, 44784);
-    			attr_dev(input8, "class", "range svelte-14bwum0");
+    			add_location(div122, file$3, 1089, 6, 43015);
+    			attr_dev(div123, "class", "slidertext svelte-py7r4k");
+    			add_location(div123, file$3, 1090, 6, 43098);
+    			attr_dev(input8, "class", "range svelte-py7r4k");
     			set_style(input8, "margin-bottom", "8px");
     			attr_dev(input8, "type", "range");
     			attr_dev(input8, "min", 0.1);
     			attr_dev(input8, "max", "100");
     			attr_dev(input8, "step", "0.01");
-    			add_location(input8, file$9, 1157, 6, 44845);
-    			add_location(br10, file$9, 1158, 124, 45088);
-    			attr_dev(div124, "class", "paneldesc svelte-14bwum0");
+    			add_location(input8, file$3, 1091, 6, 43159);
+    			add_location(br10, file$3, 1092, 124, 43402);
+    			attr_dev(div124, "class", "paneldesc svelte-py7r4k");
     			set_style(div124, "height", "29px");
     			set_style(div124, "border-top", "1px solid #EEE");
     			set_style(div124, "padding-top", "10px");
-    			add_location(div124, file$9, 1158, 6, 44970);
-    			attr_dev(div125, "class", "slidertext svelte-14bwum0");
-    			add_location(div125, file$9, 1159, 6, 45105);
-    			attr_dev(input9, "class", "range svelte-14bwum0");
+    			add_location(div124, file$3, 1092, 6, 43284);
+    			attr_dev(div125, "class", "slidertext svelte-py7r4k");
+    			add_location(div125, file$3, 1093, 6, 43419);
+    			attr_dev(input9, "class", "range svelte-py7r4k");
     			attr_dev(input9, "type", "range");
     			attr_dev(input9, "min", 0.5);
     			attr_dev(input9, "max", "100");
     			attr_dev(input9, "step", "0.01");
-    			add_location(input9, file$9, 1160, 6, 45164);
-    			attr_dev(div126, "class", "column svelte-14bwum0");
-    			add_location(div126, file$9, 1153, 4, 44623);
-    			attr_dev(div127, "class", "paneltitle svelte-14bwum0");
-    			add_location(div127, file$9, 1164, 6, 45297);
-    			add_location(br11, file$9, 1165, 70, 45413);
-    			attr_dev(div128, "class", "paneldesc svelte-14bwum0");
+    			add_location(input9, file$3, 1094, 6, 43478);
+    			attr_dev(div126, "class", "column svelte-py7r4k");
+    			add_location(div126, file$3, 1087, 4, 42937);
+    			attr_dev(div127, "class", "paneltitle svelte-py7r4k");
+    			add_location(div127, file$3, 1098, 6, 43611);
+    			add_location(br11, file$3, 1099, 70, 43727);
+    			attr_dev(div128, "class", "paneldesc svelte-py7r4k");
     			set_style(div128, "height", "30px");
-    			add_location(div128, file$9, 1165, 6, 45349);
-    			attr_dev(div129, "class", "slidertext svelte-14bwum0");
-    			add_location(div129, file$9, 1166, 6, 45430);
-    			attr_dev(input10, "class", "range svelte-14bwum0");
+    			add_location(div128, file$3, 1099, 6, 43663);
+    			attr_dev(div129, "class", "slidertext svelte-py7r4k");
+    			add_location(div129, file$3, 1100, 6, 43744);
+    			attr_dev(input10, "class", "range svelte-py7r4k");
     			set_style(input10, "margin-bottom", "8px");
     			attr_dev(input10, "type", "range");
     			attr_dev(input10, "min", 0);
     			attr_dev(input10, "max", "1");
     			attr_dev(input10, "step", "0.0001");
-    			add_location(input10, file$9, 1167, 6, 45496);
-    			add_location(br12, file$9, 1168, 120, 45729);
-    			attr_dev(div130, "class", "paneldesc svelte-14bwum0");
+    			add_location(input10, file$3, 1101, 6, 43810);
+    			add_location(br12, file$3, 1102, 120, 44043);
+    			attr_dev(div130, "class", "paneldesc svelte-py7r4k");
     			set_style(div130, "height", "29px");
     			set_style(div130, "border-top", "1px solid #EEE");
     			set_style(div130, "padding-top", "10px");
-    			add_location(div130, file$9, 1168, 6, 45615);
-    			attr_dev(div131, "class", "slidertext svelte-14bwum0");
-    			add_location(div131, file$9, 1169, 6, 45746);
-    			attr_dev(input11, "class", "range svelte-14bwum0");
+    			add_location(div130, file$3, 1102, 6, 43929);
+    			attr_dev(div131, "class", "slidertext svelte-py7r4k");
+    			add_location(div131, file$3, 1103, 6, 44060);
+    			attr_dev(input11, "class", "range svelte-py7r4k");
     			attr_dev(input11, "type", "range");
     			attr_dev(input11, "min", 0.5);
     			attr_dev(input11, "max", "100");
     			attr_dev(input11, "step", "0.01");
-    			add_location(input11, file$9, 1170, 6, 45804);
-    			attr_dev(div132, "class", "column svelte-14bwum0");
-    			add_location(div132, file$9, 1163, 4, 45270);
-    			attr_dev(div133, "class", "row svelte-14bwum0");
-    			add_location(div133, file$9, 1110, 2, 42120);
+    			add_location(input11, file$3, 1104, 6, 44118);
+    			attr_dev(div132, "class", "column svelte-py7r4k");
+    			add_location(div132, file$3, 1097, 4, 43584);
+    			attr_dev(div133, "class", "row svelte-py7r4k");
+    			add_location(div133, file$3, 1044, 2, 40434);
     			set_style(div134, "height", "220px");
-    			add_location(div134, file$9, 1104, 0, 41821);
+    			add_location(div134, file$3, 1038, 0, 40135);
     			set_style(div135, "position", "relative");
     			set_style(div135, "height", "12px");
-    			add_location(div135, file$9, 1176, 0, 45922);
-    			add_location(b1, file$9, 1178, 20, 45996);
-    			add_location(br13, file$9, 1178, 40, 46016);
+    			add_location(div135, file$3, 1110, 0, 44236);
+    			add_location(b1, file$3, 1112, 20, 44310);
+    			add_location(br13, file$3, 1112, 40, 44330);
     			attr_dev(a0, "href", "http://gabgoh.github.io/COVID/index.html");
-    			attr_dev(a0, "class", "svelte-14bwum0");
-    			add_location(a0, file$9, 1178, 115, 46091);
+    			attr_dev(a0, "class", "svelte-py7r4k");
+    			add_location(a0, file$3, 1112, 115, 44405);
     			attr_dev(a1, "href", "https://medium.com/@tomaspueyo/coronavirus-the-hammer-and-the-dance-be9337092b56");
-    			attr_dev(a1, "class", "svelte-14bwum0");
-    			add_location(a1, file$9, 1178, 438, 46414);
-    			attr_dev(p0, "class", "center svelte-14bwum0");
-    			add_location(p0, file$9, 1178, 0, 45976);
-    			add_location(b2, file$9, 1180, 20, 46586);
-    			add_location(br14, file$9, 1180, 41, 46607);
-    			add_location(i14, file$9, 1181, 387, 46999);
-    			attr_dev(p1, "class", "center svelte-14bwum0");
-    			add_location(p1, file$9, 1180, 0, 46566);
-    			add_location(b3, file$9, 1183, 20, 47323);
-    			add_location(br15, file$9, 1183, 46, 47349);
-    			attr_dev(p2, "class", "center svelte-14bwum0");
-    			add_location(p2, file$9, 1183, 0, 47303);
-    			add_location(italic0, file$9, 1185, 22, 47547);
-    			html_tag_3 = new HtmlTag(raw4_value, t282);
-    			attr_dev(p3, "class", "center svelte-14bwum0");
-    			add_location(p3, file$9, 1185, 0, 47525);
-    			add_location(italic1, file$9, 1187, 20, 48056);
-    			html_tag_4 = new HtmlTag(raw5_value, t287);
-    			attr_dev(p4, "class", "center svelte-14bwum0");
-    			add_location(p4, file$9, 1187, 0, 48036);
-    			attr_dev(p5, "class", "center svelte-14bwum0");
-    			add_location(p5, file$9, 1189, 0, 48395);
-    			add_location(b4, file$9, 1191, 18, 48619);
-    			add_location(br16, file$9, 1191, 36, 48637);
-    			attr_dev(p6, "class", "center svelte-14bwum0");
-    			add_location(p6, file$9, 1191, 0, 48601);
-    			attr_dev(p7, "class", "center svelte-14bwum0");
-    			add_location(p7, file$9, 1194, 0, 48842);
-    			add_location(b5, file$9, 1196, 20, 49067);
-    			add_location(br17, file$9, 1196, 43, 49090);
-    			attr_dev(p8, "class", "center svelte-14bwum0");
-    			add_location(p8, file$9, 1196, 0, 49047);
+    			attr_dev(a1, "class", "svelte-py7r4k");
+    			add_location(a1, file$3, 1112, 438, 44728);
+    			attr_dev(p0, "class", "center svelte-py7r4k");
+    			add_location(p0, file$3, 1112, 0, 44290);
+    			add_location(b2, file$3, 1114, 20, 44900);
+    			add_location(br14, file$3, 1114, 41, 44921);
+    			add_location(i14, file$3, 1115, 387, 45313);
+    			attr_dev(p1, "class", "center svelte-py7r4k");
+    			add_location(p1, file$3, 1114, 0, 44880);
+    			add_location(b3, file$3, 1117, 20, 45637);
+    			add_location(br15, file$3, 1117, 46, 45663);
+    			attr_dev(p2, "class", "center svelte-py7r4k");
+    			add_location(p2, file$3, 1117, 0, 45617);
+    			add_location(italic0, file$3, 1119, 22, 45861);
+    			html_tag_3 = new HtmlTag(raw4_value, t283);
+    			attr_dev(p3, "class", "center svelte-py7r4k");
+    			add_location(p3, file$3, 1119, 0, 45839);
+    			add_location(italic1, file$3, 1121, 20, 46370);
+    			html_tag_4 = new HtmlTag(raw5_value, t288);
+    			attr_dev(p4, "class", "center svelte-py7r4k");
+    			add_location(p4, file$3, 1121, 0, 46350);
+    			attr_dev(p5, "class", "center svelte-py7r4k");
+    			add_location(p5, file$3, 1123, 0, 46709);
+    			add_location(b4, file$3, 1125, 18, 46933);
+    			add_location(br16, file$3, 1125, 36, 46951);
+    			attr_dev(p6, "class", "center svelte-py7r4k");
+    			add_location(p6, file$3, 1125, 0, 46915);
+    			attr_dev(p7, "class", "center svelte-py7r4k");
+    			add_location(p7, file$3, 1128, 0, 47156);
+    			add_location(b5, file$3, 1130, 20, 47381);
+    			add_location(br17, file$3, 1130, 43, 47404);
+    			attr_dev(p8, "class", "center svelte-py7r4k");
+    			add_location(p8, file$3, 1130, 0, 47361);
     			attr_dev(a2, "href", "http://gabgoh.github.io/COVID/index.html");
-    			attr_dev(a2, "class", "svelte-14bwum0");
-    			add_location(a2, file$9, 1200, 137, 49386);
+    			attr_dev(a2, "class", "svelte-py7r4k");
+    			add_location(a2, file$3, 1134, 137, 47700);
     			attr_dev(a3, "href", "mailto:meier.benno@gmail.com");
-    			attr_dev(a3, "class", "svelte-14bwum0");
-    			add_location(a3, file$9, 1200, 316, 49565);
-    			attr_dev(p9, "class", "center svelte-14bwum0");
-    			add_location(p9, file$9, 1200, 0, 49249);
-    			attr_dev(p10, "class", "center svelte-14bwum0");
+    			attr_dev(a3, "class", "svelte-py7r4k");
+    			add_location(a3, file$3, 1134, 316, 47879);
+    			attr_dev(p9, "class", "center svelte-py7r4k");
+    			add_location(p9, file$3, 1134, 0, 47563);
+    			attr_dev(p10, "class", "center svelte-py7r4k");
     			set_style(p10, "border-top", "2px solid #666");
     			set_style(p10, "width", "950px");
     			set_style(p10, "padding-top", "10px");
-    			add_location(p10, file$9, 1203, 0, 49766);
+    			add_location(p10, file$3, 1137, 0, 48080);
     			attr_dev(a4, "href", "https://en.wikipedia.org/wiki/Compartmental_models_in_epidemiology#The_SEIR_model");
-    			attr_dev(a4, "class", "svelte-14bwum0");
-    			add_location(a4, file$9, 1207, 74, 50316);
-    			add_location(b6, file$9, 1207, 71, 50313);
-    			add_location(b7, file$9, 1207, 180, 50422);
-    			add_location(b8, file$9, 1207, 233, 50475);
+    			attr_dev(a4, "class", "svelte-py7r4k");
+    			add_location(a4, file$3, 1141, 74, 48630);
+    			add_location(b6, file$3, 1141, 71, 48627);
+    			add_location(b7, file$3, 1141, 180, 48736);
+    			add_location(b8, file$3, 1141, 233, 48789);
     			set_style(span16, "color", ctx.colors[4]);
-    			add_location(span16, file$9, 1207, 201, 50443);
-    			add_location(b9, file$9, 1207, 289, 50531);
+    			add_location(span16, file$3, 1141, 201, 48757);
+    			add_location(b9, file$3, 1141, 289, 48845);
     			set_style(span17, "color", ctx.colors[3]);
-    			add_location(span17, file$9, 1207, 257, 50499);
-    			add_location(b10, file$9, 1207, 320, 50562);
-    			add_location(span18, file$9, 1207, 314, 50556);
+    			add_location(span17, file$3, 1141, 257, 48813);
+    			add_location(b10, file$3, 1141, 320, 48876);
+    			add_location(span18, file$3, 1141, 314, 48870);
     			attr_dev(a5, "href", "https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(20)30260-9/fulltext");
-    			attr_dev(a5, "class", "svelte-14bwum0");
-    			add_location(a5, file$9, 1207, 416, 50658);
+    			attr_dev(a5, "class", "svelte-py7r4k");
+    			add_location(a5, file$3, 1141, 416, 48972);
     			attr_dev(a6, "href", "https://cmmid.github.io/topics/covid19/current-patterns-transmission/wuhan-early-dynamics.html");
-    			attr_dev(a6, "class", "svelte-14bwum0");
-    			add_location(a6, file$9, 1207, 526, 50768);
+    			attr_dev(a6, "class", "svelte-py7r4k");
+    			add_location(a6, file$3, 1141, 526, 49082);
     			set_style(span19, "color", "#777");
-    			add_location(span19, file$9, 1208, 0, 51052);
-    			attr_dev(p11, "class", "center svelte-14bwum0");
-    			add_location(p11, file$9, 1206, 0, 50221);
+    			add_location(span19, file$3, 1142, 0, 49366);
+    			attr_dev(p11, "class", "center svelte-py7r4k");
+    			add_location(p11, file$3, 1140, 0, 48535);
     			attr_dev(a7, "href", "https://www.cdc.gov/coronavirus/2019-ncov/hcp/guidance-risk-assesment-hcp.html");
-    			attr_dev(a7, "class", "svelte-14bwum0");
-    			add_location(a7, file$9, 1213, 203, 51481);
+    			attr_dev(a7, "class", "svelte-py7r4k");
+    			add_location(a7, file$3, 1147, 203, 49795);
     			attr_dev(input12, "type", "text");
     			set_style(input12, "width", "" + (ctx.Math.ceil(ctx.Math.log10(ctx.p_num_ind))*9.5 + 5) + "px");
     			set_style(input12, "font-size", "15.5px");
     			set_style(input12, "color", "#777");
-    			add_location(input12, file$9, 1213, 315, 51593);
+    			add_location(input12, file$3, 1147, 315, 49907);
     			attr_dev(a8, "href", "https://www.cdc.gov/mmwr/volumes/69/wr/mm6909e1.htm?s_cid=mm6909e1_w");
-    			attr_dev(a8, "class", "svelte-14bwum0");
-    			add_location(a8, file$9, 1213, 576, 51854);
-    			attr_dev(p12, "class", "center svelte-14bwum0");
-    			add_location(p12, file$9, 1212, 0, 51257);
-    			attr_dev(p13, "class", "center svelte-14bwum0");
-    			add_location(p13, file$9, 1217, 0, 51959);
-    			attr_dev(th0, "class", "svelte-14bwum0");
-    			add_location(th0, file$9, 1224, 4, 52174);
-    			attr_dev(th1, "class", "svelte-14bwum0");
-    			add_location(th1, file$9, 1225, 4, 52188);
-    			add_location(br18, file$9, 1226, 27, 52233);
+    			attr_dev(a8, "class", "svelte-py7r4k");
+    			add_location(a8, file$3, 1147, 576, 50168);
+    			attr_dev(p12, "class", "center svelte-py7r4k");
+    			add_location(p12, file$3, 1146, 0, 49571);
+    			attr_dev(p13, "class", "center svelte-py7r4k");
+    			add_location(p13, file$3, 1151, 0, 50273);
+    			attr_dev(th0, "class", "svelte-py7r4k");
+    			add_location(th0, file$3, 1158, 4, 50488);
+    			attr_dev(th1, "class", "svelte-py7r4k");
+    			add_location(th1, file$3, 1159, 4, 50502);
+    			add_location(br18, file$3, 1160, 27, 50547);
     			html_tag_5 = new HtmlTag(raw7_value, null);
-    			attr_dev(th2, "class", "svelte-14bwum0");
-    			add_location(th2, file$9, 1226, 4, 52210);
-    			add_location(br19, file$9, 1227, 25, 52306);
-    			html_tag_6 = new HtmlTag(raw8_value, t345);
-    			attr_dev(th3, "class", "svelte-14bwum0");
-    			add_location(th3, file$9, 1227, 4, 52285);
-    			add_location(br20, file$9, 1228, 25, 52390);
-    			html_tag_7 = new HtmlTag(raw9_value, t349);
-    			attr_dev(th4, "class", "svelte-14bwum0");
-    			add_location(th4, file$9, 1228, 4, 52369);
-    			attr_dev(tr0, "class", "svelte-14bwum0");
-    			add_location(tr0, file$9, 1223, 2, 52165);
+    			attr_dev(th2, "class", "svelte-py7r4k");
+    			add_location(th2, file$3, 1160, 4, 50524);
+    			add_location(br19, file$3, 1161, 25, 50620);
+    			html_tag_6 = new HtmlTag(raw8_value, t346);
+    			attr_dev(th3, "class", "svelte-py7r4k");
+    			add_location(th3, file$3, 1161, 4, 50599);
+    			add_location(br20, file$3, 1162, 25, 50704);
+    			html_tag_7 = new HtmlTag(raw9_value, t350);
+    			attr_dev(th4, "class", "svelte-py7r4k");
+    			add_location(th4, file$3, 1162, 4, 50683);
+    			attr_dev(tr0, "class", "svelte-py7r4k");
+    			add_location(tr0, file$3, 1157, 2, 50479);
     			attr_dev(a9, "href", "https://cmmid.github.io/topics/covid19/current-patterns-transmission/wuhan-early-dynamics.html");
-    			attr_dev(a9, "class", "svelte-14bwum0");
-    			add_location(a9, file$9, 1231, 20, 52484);
+    			attr_dev(a9, "class", "svelte-py7r4k");
+    			add_location(a9, file$3, 1165, 20, 50798);
     			attr_dev(td0, "width", "27%");
-    			attr_dev(td0, "class", "svelte-14bwum0");
-    			add_location(td0, file$9, 1231, 4, 52468);
-    			attr_dev(td1, "class", "svelte-14bwum0");
-    			add_location(td1, file$9, 1232, 4, 52621);
-    			attr_dev(td2, "class", "svelte-14bwum0");
-    			add_location(td2, file$9, 1233, 4, 52645);
-    			attr_dev(td3, "class", "svelte-14bwum0");
-    			add_location(td3, file$9, 1234, 4, 52674);
-    			attr_dev(td4, "class", "svelte-14bwum0");
-    			add_location(td4, file$9, 1235, 4, 52691);
-    			attr_dev(tr1, "class", "svelte-14bwum0");
-    			add_location(tr1, file$9, 1230, 2, 52459);
+    			attr_dev(td0, "class", "svelte-py7r4k");
+    			add_location(td0, file$3, 1165, 4, 50782);
+    			attr_dev(td1, "class", "svelte-py7r4k");
+    			add_location(td1, file$3, 1166, 4, 50935);
+    			attr_dev(td2, "class", "svelte-py7r4k");
+    			add_location(td2, file$3, 1167, 4, 50959);
+    			attr_dev(td3, "class", "svelte-py7r4k");
+    			add_location(td3, file$3, 1168, 4, 50988);
+    			attr_dev(td4, "class", "svelte-py7r4k");
+    			add_location(td4, file$3, 1169, 4, 51005);
+    			attr_dev(tr1, "class", "svelte-py7r4k");
+    			add_location(tr1, file$3, 1164, 2, 50773);
     			attr_dev(a10, "href", "https://www.nejm.org/doi/full/10.1056/NEJMoa2001316");
-    			attr_dev(a10, "class", "svelte-14bwum0");
-    			add_location(a10, file$9, 1238, 8, 52727);
-    			attr_dev(td5, "class", "svelte-14bwum0");
-    			add_location(td5, file$9, 1238, 4, 52723);
-    			attr_dev(td6, "class", "svelte-14bwum0");
-    			add_location(td6, file$9, 1239, 4, 52824);
-    			attr_dev(td7, "class", "svelte-14bwum0");
-    			add_location(td7, file$9, 1240, 4, 52848);
-    			attr_dev(td8, "class", "svelte-14bwum0");
-    			add_location(td8, file$9, 1241, 4, 52877);
-    			attr_dev(td9, "class", "svelte-14bwum0");
-    			add_location(td9, file$9, 1242, 4, 52906);
-    			attr_dev(tr2, "class", "svelte-14bwum0");
-    			add_location(tr2, file$9, 1237, 2, 52714);
+    			attr_dev(a10, "class", "svelte-py7r4k");
+    			add_location(a10, file$3, 1172, 8, 51041);
+    			attr_dev(td5, "class", "svelte-py7r4k");
+    			add_location(td5, file$3, 1172, 4, 51037);
+    			attr_dev(td6, "class", "svelte-py7r4k");
+    			add_location(td6, file$3, 1173, 4, 51138);
+    			attr_dev(td7, "class", "svelte-py7r4k");
+    			add_location(td7, file$3, 1174, 4, 51162);
+    			attr_dev(td8, "class", "svelte-py7r4k");
+    			add_location(td8, file$3, 1175, 4, 51191);
+    			attr_dev(td9, "class", "svelte-py7r4k");
+    			add_location(td9, file$3, 1176, 4, 51220);
+    			attr_dev(tr2, "class", "svelte-py7r4k");
+    			add_location(tr2, file$3, 1171, 2, 51028);
     			attr_dev(a11, "href", "https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(20)30260-9/fulltext");
-    			attr_dev(a11, "class", "svelte-14bwum0");
-    			add_location(a11, file$9, 1245, 8, 52955);
-    			attr_dev(td10, "class", "svelte-14bwum0");
-    			add_location(td10, file$9, 1245, 4, 52951);
-    			attr_dev(td11, "class", "svelte-14bwum0");
-    			add_location(td11, file$9, 1246, 4, 53074);
-    			attr_dev(td12, "class", "svelte-14bwum0");
-    			add_location(td12, file$9, 1247, 4, 53106);
-    			attr_dev(td13, "class", "svelte-14bwum0");
-    			add_location(td13, file$9, 1248, 4, 53138);
-    			attr_dev(td14, "class", "svelte-14bwum0");
-    			add_location(td14, file$9, 1249, 4, 53155);
-    			attr_dev(tr3, "class", "svelte-14bwum0");
-    			add_location(tr3, file$9, 1244, 2, 52942);
+    			attr_dev(a11, "class", "svelte-py7r4k");
+    			add_location(a11, file$3, 1179, 8, 51269);
+    			attr_dev(td10, "class", "svelte-py7r4k");
+    			add_location(td10, file$3, 1179, 4, 51265);
+    			attr_dev(td11, "class", "svelte-py7r4k");
+    			add_location(td11, file$3, 1180, 4, 51388);
+    			attr_dev(td12, "class", "svelte-py7r4k");
+    			add_location(td12, file$3, 1181, 4, 51420);
+    			attr_dev(td13, "class", "svelte-py7r4k");
+    			add_location(td13, file$3, 1182, 4, 51452);
+    			attr_dev(td14, "class", "svelte-py7r4k");
+    			add_location(td14, file$3, 1183, 4, 51469);
+    			attr_dev(tr3, "class", "svelte-py7r4k");
+    			add_location(tr3, file$3, 1178, 2, 51256);
     			attr_dev(a12, "href", "https://www.who.int/news-room/detail/23-01-2020-statement-on-the-meeting-of-the-international-health-regulations-(2005)-emergency-committee-regarding-the-outbreak-of-novel-coronavirus-(2019-ncov)");
-    			attr_dev(a12, "class", "svelte-14bwum0");
-    			add_location(a12, file$9, 1252, 8, 53191);
-    			attr_dev(td15, "class", "svelte-14bwum0");
-    			add_location(td15, file$9, 1252, 4, 53187);
-    			attr_dev(td16, "class", "svelte-14bwum0");
-    			add_location(td16, file$9, 1253, 4, 53433);
-    			attr_dev(td17, "class", "svelte-14bwum0");
-    			add_location(td17, file$9, 1254, 4, 53457);
-    			attr_dev(td18, "class", "svelte-14bwum0");
-    			add_location(td18, file$9, 1255, 4, 53487);
-    			attr_dev(td19, "class", "svelte-14bwum0");
-    			add_location(td19, file$9, 1256, 4, 53501);
-    			attr_dev(tr4, "class", "svelte-14bwum0");
-    			add_location(tr4, file$9, 1251, 2, 53178);
+    			attr_dev(a12, "class", "svelte-py7r4k");
+    			add_location(a12, file$3, 1186, 8, 51505);
+    			attr_dev(td15, "class", "svelte-py7r4k");
+    			add_location(td15, file$3, 1186, 4, 51501);
+    			attr_dev(td16, "class", "svelte-py7r4k");
+    			add_location(td16, file$3, 1187, 4, 51747);
+    			attr_dev(td17, "class", "svelte-py7r4k");
+    			add_location(td17, file$3, 1188, 4, 51771);
+    			attr_dev(td18, "class", "svelte-py7r4k");
+    			add_location(td18, file$3, 1189, 4, 51801);
+    			attr_dev(td19, "class", "svelte-py7r4k");
+    			add_location(td19, file$3, 1190, 4, 51815);
+    			attr_dev(tr4, "class", "svelte-py7r4k");
+    			add_location(tr4, file$3, 1185, 2, 51492);
     			attr_dev(a13, "href", "https://www.who.int/docs/default-source/coronaviruse/who-china-joint-mission-on-covid-19-final-report.pdf");
-    			attr_dev(a13, "class", "svelte-14bwum0");
-    			add_location(a13, file$9, 1259, 8, 53534);
-    			attr_dev(td20, "class", "svelte-14bwum0");
-    			add_location(td20, file$9, 1259, 4, 53530);
-    			attr_dev(td21, "class", "svelte-14bwum0");
-    			add_location(td21, file$9, 1260, 4, 53690);
-    			attr_dev(td22, "class", "svelte-14bwum0");
-    			add_location(td22, file$9, 1261, 4, 53714);
-    			attr_dev(td23, "class", "svelte-14bwum0");
-    			add_location(td23, file$9, 1262, 4, 53744);
-    			attr_dev(td24, "class", "svelte-14bwum0");
-    			add_location(td24, file$9, 1263, 4, 53773);
-    			attr_dev(tr5, "class", "svelte-14bwum0");
-    			add_location(tr5, file$9, 1258, 2, 53521);
+    			attr_dev(a13, "class", "svelte-py7r4k");
+    			add_location(a13, file$3, 1193, 8, 51848);
+    			attr_dev(td20, "class", "svelte-py7r4k");
+    			add_location(td20, file$3, 1193, 4, 51844);
+    			attr_dev(td21, "class", "svelte-py7r4k");
+    			add_location(td21, file$3, 1194, 4, 52004);
+    			attr_dev(td22, "class", "svelte-py7r4k");
+    			add_location(td22, file$3, 1195, 4, 52028);
+    			attr_dev(td23, "class", "svelte-py7r4k");
+    			add_location(td23, file$3, 1196, 4, 52058);
+    			attr_dev(td24, "class", "svelte-py7r4k");
+    			add_location(td24, file$3, 1197, 4, 52087);
+    			attr_dev(tr5, "class", "svelte-py7r4k");
+    			add_location(tr5, file$3, 1192, 2, 51835);
     			attr_dev(a14, "href", "https://www.biorxiv.org/content/10.1101/2020.01.25.919787v2");
-    			attr_dev(a14, "class", "svelte-14bwum0");
-    			add_location(a14, file$9, 1266, 8, 53806);
-    			attr_dev(td25, "class", "svelte-14bwum0");
-    			add_location(td25, file$9, 1266, 4, 53802);
-    			attr_dev(td26, "class", "svelte-14bwum0");
-    			add_location(td26, file$9, 1267, 4, 53903);
-    			attr_dev(td27, "class", "svelte-14bwum0");
-    			add_location(td27, file$9, 1268, 4, 53926);
-    			attr_dev(td28, "class", "svelte-14bwum0");
-    			add_location(td28, file$9, 1269, 4, 53955);
-    			attr_dev(td29, "class", "svelte-14bwum0");
-    			add_location(td29, file$9, 1270, 4, 53985);
-    			attr_dev(tr6, "class", "svelte-14bwum0");
-    			add_location(tr6, file$9, 1265, 2, 53793);
+    			attr_dev(a14, "class", "svelte-py7r4k");
+    			add_location(a14, file$3, 1200, 8, 52120);
+    			attr_dev(td25, "class", "svelte-py7r4k");
+    			add_location(td25, file$3, 1200, 4, 52116);
+    			attr_dev(td26, "class", "svelte-py7r4k");
+    			add_location(td26, file$3, 1201, 4, 52217);
+    			attr_dev(td27, "class", "svelte-py7r4k");
+    			add_location(td27, file$3, 1202, 4, 52240);
+    			attr_dev(td28, "class", "svelte-py7r4k");
+    			add_location(td28, file$3, 1203, 4, 52269);
+    			attr_dev(td29, "class", "svelte-py7r4k");
+    			add_location(td29, file$3, 1204, 4, 52299);
+    			attr_dev(tr6, "class", "svelte-py7r4k");
+    			add_location(tr6, file$3, 1199, 2, 52107);
     			attr_dev(a15, "href", "https://academic.oup.com/jtm/advance-article/doi/10.1093/jtm/taaa030/5766334");
-    			attr_dev(a15, "class", "svelte-14bwum0");
-    			add_location(a15, file$9, 1273, 8, 54031);
-    			attr_dev(td30, "class", "svelte-14bwum0");
-    			add_location(td30, file$9, 1273, 4, 54027);
-    			attr_dev(td31, "class", "svelte-14bwum0");
-    			add_location(td31, file$9, 1274, 4, 54166);
-    			attr_dev(td32, "class", "svelte-14bwum0");
-    			add_location(td32, file$9, 1275, 4, 54196);
-    			attr_dev(td33, "class", "svelte-14bwum0");
-    			add_location(td33, file$9, 1276, 4, 54214);
-    			attr_dev(td34, "class", "svelte-14bwum0");
-    			add_location(td34, file$9, 1277, 4, 54231);
-    			attr_dev(tr7, "class", "svelte-14bwum0");
-    			add_location(tr7, file$9, 1272, 2, 54018);
+    			attr_dev(a15, "class", "svelte-py7r4k");
+    			add_location(a15, file$3, 1207, 8, 52345);
+    			attr_dev(td30, "class", "svelte-py7r4k");
+    			add_location(td30, file$3, 1207, 4, 52341);
+    			attr_dev(td31, "class", "svelte-py7r4k");
+    			add_location(td31, file$3, 1208, 4, 52480);
+    			attr_dev(td32, "class", "svelte-py7r4k");
+    			add_location(td32, file$3, 1209, 4, 52510);
+    			attr_dev(td33, "class", "svelte-py7r4k");
+    			add_location(td33, file$3, 1210, 4, 52528);
+    			attr_dev(td34, "class", "svelte-py7r4k");
+    			add_location(td34, file$3, 1211, 4, 52545);
+    			attr_dev(tr7, "class", "svelte-py7r4k");
+    			add_location(tr7, file$3, 1206, 2, 52332);
     			attr_dev(a16, "href", "https://www.eurosurveillance.org/content/10.2807/1560-7917.ES.2020.25.5.2000062");
-    			attr_dev(a16, "class", "svelte-14bwum0");
-    			add_location(a16, file$9, 1280, 8, 54268);
-    			attr_dev(td35, "class", "svelte-14bwum0");
-    			add_location(td35, file$9, 1280, 4, 54264);
-    			attr_dev(td36, "class", "svelte-14bwum0");
-    			add_location(td36, file$9, 1281, 4, 54403);
-    			attr_dev(td37, "class", "svelte-14bwum0");
-    			add_location(td37, file$9, 1282, 4, 54422);
-    			attr_dev(td38, "class", "svelte-14bwum0");
-    			add_location(td38, file$9, 1283, 4, 54436);
-    			attr_dev(td39, "class", "svelte-14bwum0");
-    			add_location(td39, file$9, 1284, 4, 54465);
-    			attr_dev(tr8, "class", "svelte-14bwum0");
-    			add_location(tr8, file$9, 1279, 2, 54255);
+    			attr_dev(a16, "class", "svelte-py7r4k");
+    			add_location(a16, file$3, 1214, 8, 52582);
+    			attr_dev(td35, "class", "svelte-py7r4k");
+    			add_location(td35, file$3, 1214, 4, 52578);
+    			attr_dev(td36, "class", "svelte-py7r4k");
+    			add_location(td36, file$3, 1215, 4, 52717);
+    			attr_dev(td37, "class", "svelte-py7r4k");
+    			add_location(td37, file$3, 1216, 4, 52736);
+    			attr_dev(td38, "class", "svelte-py7r4k");
+    			add_location(td38, file$3, 1217, 4, 52750);
+    			attr_dev(td39, "class", "svelte-py7r4k");
+    			add_location(td39, file$3, 1218, 4, 52779);
+    			attr_dev(tr8, "class", "svelte-py7r4k");
+    			add_location(tr8, file$3, 1213, 2, 52569);
     			attr_dev(a17, "href", "https://www.medrxiv.org/content/10.1101/2020.01.23.20018549v2.article-info");
-    			attr_dev(a17, "class", "svelte-14bwum0");
-    			add_location(a17, file$9, 1287, 8, 54498);
-    			attr_dev(td40, "class", "svelte-14bwum0");
-    			add_location(td40, file$9, 1287, 4, 54494);
-    			attr_dev(td41, "class", "svelte-14bwum0");
-    			add_location(td41, file$9, 1288, 4, 54610);
-    			attr_dev(td42, "class", "svelte-14bwum0");
-    			add_location(td42, file$9, 1289, 4, 54629);
-    			attr_dev(td43, "class", "svelte-14bwum0");
-    			add_location(td43, file$9, 1290, 4, 54661);
-    			attr_dev(td44, "class", "svelte-14bwum0");
-    			add_location(td44, file$9, 1291, 4, 54675);
-    			attr_dev(tr9, "class", "svelte-14bwum0");
-    			add_location(tr9, file$9, 1286, 2, 54485);
+    			attr_dev(a17, "class", "svelte-py7r4k");
+    			add_location(a17, file$3, 1221, 8, 52812);
+    			attr_dev(td40, "class", "svelte-py7r4k");
+    			add_location(td40, file$3, 1221, 4, 52808);
+    			attr_dev(td41, "class", "svelte-py7r4k");
+    			add_location(td41, file$3, 1222, 4, 52924);
+    			attr_dev(td42, "class", "svelte-py7r4k");
+    			add_location(td42, file$3, 1223, 4, 52943);
+    			attr_dev(td43, "class", "svelte-py7r4k");
+    			add_location(td43, file$3, 1224, 4, 52975);
+    			attr_dev(td44, "class", "svelte-py7r4k");
+    			add_location(td44, file$3, 1225, 4, 52989);
+    			attr_dev(tr9, "class", "svelte-py7r4k");
+    			add_location(tr9, file$3, 1220, 2, 52799);
     			attr_dev(a18, "href", "https://www.medrxiv.org/content/10.1101/2020.03.03.20028423v1");
-    			attr_dev(a18, "class", "svelte-14bwum0");
-    			add_location(a18, file$9, 1294, 8, 54708);
-    			attr_dev(td45, "class", "svelte-14bwum0");
-    			add_location(td45, file$9, 1294, 4, 54704);
-    			attr_dev(td46, "class", "svelte-14bwum0");
-    			add_location(td46, file$9, 1295, 4, 54805);
-    			attr_dev(td47, "class", "svelte-14bwum0");
-    			add_location(td47, file$9, 1296, 4, 54827);
-    			attr_dev(td48, "class", "svelte-14bwum0");
-    			add_location(td48, file$9, 1297, 4, 54841);
-    			attr_dev(td49, "class", "svelte-14bwum0");
-    			add_location(td49, file$9, 1298, 4, 54870);
-    			attr_dev(td50, "class", "svelte-14bwum0");
-    			add_location(td50, file$9, 1299, 4, 54897);
-    			attr_dev(tr10, "class", "svelte-14bwum0");
-    			add_location(tr10, file$9, 1293, 2, 54695);
+    			attr_dev(a18, "class", "svelte-py7r4k");
+    			add_location(a18, file$3, 1228, 8, 53022);
+    			attr_dev(td45, "class", "svelte-py7r4k");
+    			add_location(td45, file$3, 1228, 4, 53018);
+    			attr_dev(td46, "class", "svelte-py7r4k");
+    			add_location(td46, file$3, 1229, 4, 53119);
+    			attr_dev(td47, "class", "svelte-py7r4k");
+    			add_location(td47, file$3, 1230, 4, 53141);
+    			attr_dev(td48, "class", "svelte-py7r4k");
+    			add_location(td48, file$3, 1231, 4, 53155);
+    			attr_dev(td49, "class", "svelte-py7r4k");
+    			add_location(td49, file$3, 1232, 4, 53184);
+    			attr_dev(td50, "class", "svelte-py7r4k");
+    			add_location(td50, file$3, 1233, 4, 53211);
+    			attr_dev(tr10, "class", "svelte-py7r4k");
+    			add_location(tr10, file$3, 1227, 2, 53009);
     			attr_dev(a19, "href", "https://www.mdpi.com/2077-0383/9/2/462");
-    			attr_dev(a19, "class", "svelte-14bwum0");
-    			add_location(a19, file$9, 1303, 8, 54931);
-    			attr_dev(td51, "class", "svelte-14bwum0");
-    			add_location(td51, file$9, 1303, 4, 54927);
-    			attr_dev(td52, "class", "svelte-14bwum0");
-    			add_location(td52, file$9, 1304, 4, 55007);
-    			attr_dev(td53, "class", "svelte-14bwum0");
-    			add_location(td53, file$9, 1305, 4, 55026);
-    			attr_dev(td54, "class", "svelte-14bwum0");
-    			add_location(td54, file$9, 1306, 4, 55058);
-    			attr_dev(td55, "class", "svelte-14bwum0");
-    			add_location(td55, file$9, 1307, 4, 55072);
-    			attr_dev(tr11, "class", "svelte-14bwum0");
-    			add_location(tr11, file$9, 1302, 2, 54918);
+    			attr_dev(a19, "class", "svelte-py7r4k");
+    			add_location(a19, file$3, 1237, 8, 53245);
+    			attr_dev(td51, "class", "svelte-py7r4k");
+    			add_location(td51, file$3, 1237, 4, 53241);
+    			attr_dev(td52, "class", "svelte-py7r4k");
+    			add_location(td52, file$3, 1238, 4, 53321);
+    			attr_dev(td53, "class", "svelte-py7r4k");
+    			add_location(td53, file$3, 1239, 4, 53340);
+    			attr_dev(td54, "class", "svelte-py7r4k");
+    			add_location(td54, file$3, 1240, 4, 53372);
+    			attr_dev(td55, "class", "svelte-py7r4k");
+    			add_location(td55, file$3, 1241, 4, 53386);
+    			attr_dev(tr11, "class", "svelte-py7r4k");
+    			add_location(tr11, file$3, 1236, 2, 53232);
     			set_style(table, "width", "100%");
     			set_style(table, "margin", "auto");
     			set_style(table, "font-weight", "300");
     			set_style(table, "border-spacing", "inherit");
-    			add_location(table, file$9, 1222, 0, 52080);
-    			attr_dev(div136, "class", "center svelte-14bwum0");
-    			add_location(div136, file$9, 1221, 0, 52059);
+    			add_location(table, file$3, 1156, 0, 50394);
+    			attr_dev(div136, "class", "center svelte-py7r4k");
+    			add_location(div136, file$3, 1155, 0, 50373);
     			attr_dev(a20, "href", "https://academic.oup.com/jtm/advance-article/doi/10.1093/jtm/taaa021/5735319");
-    			attr_dev(a20, "class", "svelte-14bwum0");
-    			add_location(a20, file$9, 1315, 5, 55133);
+    			attr_dev(a20, "class", "svelte-py7r4k");
+    			add_location(a20, file$3, 1249, 5, 53447);
     			attr_dev(a21, "href", "https://www.who.int/docs/default-source/coronaviruse/who-china-joint-mission-on-covid-19-final-report.pdf");
-    			attr_dev(a21, "class", "svelte-14bwum0");
-    			add_location(a21, file$9, 1315, 256, 55384);
-    			attr_dev(p14, "class", "center svelte-14bwum0");
-    			add_location(p14, file$9, 1314, 0, 55109);
+    			attr_dev(a21, "class", "svelte-py7r4k");
+    			add_location(a21, file$3, 1249, 256, 53698);
+    			attr_dev(p14, "class", "center svelte-py7r4k");
+    			add_location(p14, file$3, 1248, 0, 53423);
     			attr_dev(a22, "href", "https://twitter.com/gabeeegoooh");
-    			attr_dev(a22, "class", "svelte-14bwum0");
-    			add_location(a22, file$9, 1319, 22, 55564);
+    			attr_dev(a22, "class", "svelte-py7r4k");
+    			add_location(a22, file$3, 1253, 22, 53878);
     			attr_dev(a23, "href", "mailto:izmegabe@gmail.com");
-    			attr_dev(a23, "class", "svelte-14bwum0");
-    			add_location(a23, file$9, 1319, 85, 55627);
+    			attr_dev(a23, "class", "svelte-py7r4k");
+    			add_location(a23, file$3, 1253, 85, 53941);
     			attr_dev(a24, "href", "http://gabgoh.github.io/");
-    			attr_dev(a24, "class", "svelte-14bwum0");
-    			add_location(a24, file$9, 1319, 134, 55676);
-    			attr_dev(p15, "class", "center svelte-14bwum0");
-    			add_location(p15, file$9, 1318, 0, 55523);
-    			add_location(b11, file$9, 1328, 0, 55988);
-    			add_location(br21, file$9, 1328, 22, 56010);
-    			html_tag_8 = new HtmlTag(raw10_value, t468);
-    			add_location(i15, file$9, 1329, 172, 56187);
-    			add_location(i16, file$9, 1329, 245, 56260);
-    			add_location(i17, file$9, 1329, 316, 56331);
-    			attr_dev(p16, "class", "center svelte-14bwum0");
-    			add_location(p16, file$9, 1327, 0, 55967);
-    			add_location(b12, file$9, 1333, 0, 56792);
-    			add_location(br22, file$9, 1333, 25, 56817);
+    			attr_dev(a24, "class", "svelte-py7r4k");
+    			add_location(a24, file$3, 1253, 134, 53990);
+    			attr_dev(p15, "class", "center svelte-py7r4k");
+    			add_location(p15, file$3, 1252, 0, 53837);
+    			add_location(b11, file$3, 1262, 0, 54302);
+    			add_location(br21, file$3, 1262, 22, 54324);
+    			html_tag_8 = new HtmlTag(raw10_value, t469);
+    			add_location(i15, file$3, 1263, 172, 54501);
+    			add_location(i16, file$3, 1263, 245, 54574);
+    			add_location(i17, file$3, 1263, 316, 54645);
+    			attr_dev(p16, "class", "center svelte-py7r4k");
+    			add_location(p16, file$3, 1261, 0, 54281);
+    			add_location(b12, file$3, 1267, 0, 55106);
+    			add_location(br22, file$3, 1267, 25, 55131);
     			attr_dev(a25, "href", "https://enkimute.github.io/");
-    			attr_dev(a25, "class", "svelte-14bwum0");
-    			add_location(a25, file$9, 1334, 0, 56822);
+    			attr_dev(a25, "class", "svelte-py7r4k");
+    			add_location(a25, file$3, 1268, 0, 55136);
     			attr_dev(a26, "href", "https://twitter.com/ch402");
-    			attr_dev(a26, "class", "svelte-14bwum0");
-    			add_location(a26, file$9, 1334, 82, 56904);
+    			attr_dev(a26, "class", "svelte-py7r4k");
+    			add_location(a26, file$3, 1268, 82, 55218);
     			attr_dev(a27, "href", "https://twitter.com/shancarter");
-    			attr_dev(a27, "class", "svelte-14bwum0");
-    			add_location(a27, file$9, 1334, 134, 56956);
+    			attr_dev(a27, "class", "svelte-py7r4k");
+    			add_location(a27, file$3, 1268, 134, 55270);
     			attr_dev(a28, "href", "https://twitter.com/ludwigschubert");
-    			attr_dev(a28, "class", "svelte-14bwum0");
-    			add_location(a28, file$9, 1335, 9, 57018);
-    			attr_dev(p17, "class", "center svelte-14bwum0");
-    			add_location(p17, file$9, 1332, 0, 56771);
-    			attr_dev(div137, "class", "legendtext svelte-14bwum0");
-    			add_location(div137, file$9, 1343, 4, 57287);
+    			attr_dev(a28, "class", "svelte-py7r4k");
+    			add_location(a28, file$3, 1269, 9, 55332);
+    			attr_dev(p17, "class", "center svelte-py7r4k");
+    			add_location(p17, file$3, 1266, 0, 55085);
+    			attr_dev(div137, "class", "legendtext svelte-py7r4k");
+    			add_location(div137, file$3, 1277, 4, 55601);
     			attr_dev(textarea, "type", "textarea");
     			attr_dev(textarea, "rows", "1");
     			attr_dev(textarea, "cols", "5000");
@@ -30158,15 +26050,15 @@
     			attr_dev(textarea, "id", "fname");
     			attr_dev(textarea, "name", "fname");
     			textarea.value = ctx.state;
-    			add_location(textarea, file$9, 1345, 6, 57353);
-    			add_location(form, file$9, 1344, 4, 57340);
-    			attr_dev(div138, "class", "center svelte-14bwum0");
+    			add_location(textarea, file$3, 1279, 6, 55667);
+    			add_location(form, file$3, 1278, 4, 55654);
+    			attr_dev(div138, "class", "center svelte-py7r4k");
     			set_style(div138, "padding", "10px");
     			set_style(div138, "margin-top", "3px");
     			set_style(div138, "width", "925px");
-    			add_location(div138, file$9, 1342, 2, 57209);
+    			add_location(div138, file$3, 1276, 2, 55523);
     			set_style(div139, "margin-bottom", "30px");
-    			add_location(div139, file$9, 1340, 0, 57172);
+    			add_location(div139, file$3, 1274, 0, 55486);
 
     			dispose = [
     				listen_dev(div63, "mousedown", ctx.lock_yaxis),
@@ -30463,552 +26355,552 @@
     			append_dev(div91, div82);
     			append_dev(div82, div81);
     			append_dev(div81, div69);
-    			mount_component(select, div69, null);
-    			append_dev(div81, t148);
+    			if (if_block1) if_block1.m(div69, null);
+    			append_dev(div69, t148);
+    			append_dev(div81, t149);
     			append_dev(div81, div70);
-    			if (if_block1) if_block1.m(div70, null);
-    			append_dev(div70, t149);
     			append_dev(div70, t150);
-    			append_dev(div81, t151);
+    			append_dev(div70, t151);
+    			append_dev(div81, t152);
     			append_dev(div81, div71);
-    			append_dev(div71, t152);
+    			append_dev(div71, t153);
 
     			info_1.block.m(div71, info_1.anchor = null);
     			info_1.mount = () => div71;
     			info_1.anchor = null;
 
-    			append_dev(div81, t153);
+    			append_dev(div81, t154);
     			append_dev(div81, div72);
-    			append_dev(div72, t154);
+    			append_dev(div72, t155);
 
     			info_2.block.m(div72, info_2.anchor = null);
     			info_2.mount = () => div72;
     			info_2.anchor = null;
 
-    			append_dev(div81, t155);
+    			append_dev(div81, t156);
     			append_dev(div81, div73);
-    			append_dev(div81, t157);
+    			append_dev(div81, t158);
     			append_dev(div81, div77);
     			append_dev(div77, div74);
     			append_dev(div74, button0);
-    			append_dev(div77, t159);
+    			append_dev(div77, t160);
     			append_dev(div77, div75);
     			append_dev(div75, button1);
-    			append_dev(div77, t161);
+    			append_dev(div77, t162);
     			append_dev(div77, div76);
     			append_dev(div76, button2);
-    			append_dev(div81, t163);
+    			append_dev(div81, t164);
     			append_dev(div81, div78);
-    			append_dev(div81, t165);
+    			append_dev(div81, t166);
     			append_dev(div81, div79);
-    			append_dev(div79, t166);
     			append_dev(div79, t167);
-    			append_dev(div81, t168);
+    			append_dev(div79, t168);
+    			append_dev(div81, t169);
     			append_dev(div81, div80);
-    			append_dev(div80, t169);
     			append_dev(div80, t170);
-    			append_dev(div91, t171);
+    			append_dev(div80, t171);
+    			append_dev(div91, t172);
     			append_dev(div91, div85);
     			append_dev(div85, div84);
     			mount_component(checkbox7, div84, null);
     			append_dev(div84, div83);
-    			append_dev(div91, t173);
+    			append_dev(div91, t174);
     			append_dev(div91, div90);
     			append_dev(div90, div87);
     			mount_component(checkbox8, div87, null);
-    			append_dev(div87, t174);
+    			append_dev(div87, t175);
     			append_dev(div87, div86);
-    			append_dev(div90, t176);
+    			append_dev(div90, t177);
     			append_dev(div90, div89);
     			mount_component(checkbox9, div89, null);
     			append_dev(div89, div88);
-    			insert_dev(target, t178, anchor);
+    			insert_dev(target, t179, anchor);
     			insert_dev(target, div134, anchor);
     			append_dev(div134, div96);
     			append_dev(div96, div93);
-    			append_dev(div96, t180);
-    			append_dev(div96, div94);
     			append_dev(div96, t181);
+    			append_dev(div96, div94);
+    			append_dev(div96, t182);
     			append_dev(div96, div95);
-    			append_dev(div134, t183);
+    			append_dev(div134, t184);
     			append_dev(div134, div133);
     			append_dev(div133, div102);
     			append_dev(div102, div97);
-    			append_dev(div102, t185);
+    			append_dev(div102, t186);
     			append_dev(div102, div98);
-    			append_dev(div98, t186);
     			append_dev(div98, t187);
     			append_dev(div98, t188);
+    			append_dev(div98, t189);
     			append_dev(div98, br2);
-    			append_dev(div102, t189);
+    			append_dev(div102, t190);
     			append_dev(div102, div99);
-    			append_dev(div99, t190);
-    			append_dev(div102, t191);
+    			append_dev(div99, t191);
+    			append_dev(div102, t192);
     			append_dev(div102, input1);
 
     			set_input_value(input1, ctx.dayZero);
 
-    			append_dev(div102, t192);
+    			append_dev(div102, t193);
     			append_dev(div102, div100);
-    			append_dev(div100, t193);
+    			append_dev(div100, t194);
     			append_dev(div100, br3);
-    			append_dev(div102, t194);
+    			append_dev(div102, t195);
     			append_dev(div102, div101);
-    			append_dev(div101, t195);
-    			append_dev(div102, t196);
+    			append_dev(div101, t196);
+    			append_dev(div102, t197);
     			append_dev(div102, input2);
 
     			set_input_value(input2, ctx.I0);
 
-    			append_dev(div133, t197);
+    			append_dev(div133, t198);
     			append_dev(div133, div107);
     			append_dev(div107, div105);
     			append_dev(div105, div103);
-    			append_dev(div103, t198);
+    			append_dev(div103, t199);
     			html_tag.m(div103);
-    			append_dev(div105, t199);
+    			append_dev(div105, t200);
     			append_dev(div105, div104);
-    			append_dev(div104, t200);
+    			append_dev(div104, t201);
     			append_dev(div104, br4);
-    			append_dev(div107, t201);
+    			append_dev(div107, t202);
     			append_dev(div107, div106);
-    			append_dev(div106, t202);
-    			append_dev(div107, t203);
+    			append_dev(div106, t203);
+    			append_dev(div107, t204);
     			append_dev(div107, input3);
 
     			set_input_value(input3, ctx.R0);
 
-    			append_dev(div133, t204);
+    			append_dev(div133, t205);
     			append_dev(div133, div113);
     			append_dev(div113, div108);
-    			append_dev(div113, t206);
+    			append_dev(div113, t207);
     			append_dev(div113, div109);
-    			append_dev(div109, t207);
-    			html_tag_1.m(div109);
     			append_dev(div109, t208);
+    			html_tag_1.m(div109);
+    			append_dev(div109, t209);
     			append_dev(div109, br5);
-    			append_dev(div113, t209);
+    			append_dev(div113, t210);
     			append_dev(div113, div110);
-    			append_dev(div110, t210);
     			append_dev(div110, t211);
-    			append_dev(div113, t212);
+    			append_dev(div110, t212);
+    			append_dev(div113, t213);
     			append_dev(div113, input4);
 
     			set_input_value(input4, ctx.D_incbation);
 
-    			append_dev(div113, t213);
+    			append_dev(div113, t214);
     			append_dev(div113, div111);
-    			append_dev(div111, t214);
-    			html_tag_2.m(div111);
     			append_dev(div111, t215);
+    			html_tag_2.m(div111);
+    			append_dev(div111, t216);
     			append_dev(div111, br6);
-    			append_dev(div113, t216);
+    			append_dev(div113, t217);
     			append_dev(div113, div112);
-    			append_dev(div112, t217);
     			append_dev(div112, t218);
-    			append_dev(div113, t219);
+    			append_dev(div112, t219);
+    			append_dev(div113, t220);
     			append_dev(div113, input5);
 
     			set_input_value(input5, ctx.D_infectious);
 
-    			append_dev(div133, t220);
-    			append_dev(div133, div114);
     			append_dev(div133, t221);
+    			append_dev(div133, div114);
+    			append_dev(div133, t222);
     			append_dev(div133, div120);
     			append_dev(div120, div115);
-    			append_dev(div120, t223);
+    			append_dev(div120, t224);
     			append_dev(div120, div116);
-    			append_dev(div116, t224);
+    			append_dev(div116, t225);
     			append_dev(div116, br7);
-    			append_dev(div120, t225);
+    			append_dev(div120, t226);
     			append_dev(div120, div117);
-    			append_dev(div117, t226);
     			append_dev(div117, t227);
-    			append_dev(div120, t228);
+    			append_dev(div117, t228);
+    			append_dev(div120, t229);
     			append_dev(div120, input6);
 
     			set_input_value(input6, ctx.CFR);
 
-    			append_dev(div120, t229);
+    			append_dev(div120, t230);
     			append_dev(div120, div118);
-    			append_dev(div118, t230);
+    			append_dev(div118, t231);
     			append_dev(div118, br8);
-    			append_dev(div120, t231);
+    			append_dev(div120, t232);
     			append_dev(div120, div119);
-    			append_dev(div119, t232);
     			append_dev(div119, t233);
-    			append_dev(div120, t234);
+    			append_dev(div119, t234);
+    			append_dev(div120, t235);
     			append_dev(div120, input7);
 
     			set_input_value(input7, ctx.Time_to_death);
 
-    			append_dev(div133, t235);
+    			append_dev(div133, t236);
     			append_dev(div133, div126);
     			append_dev(div126, div121);
-    			append_dev(div126, t237);
+    			append_dev(div126, t238);
     			append_dev(div126, div122);
-    			append_dev(div122, t238);
+    			append_dev(div122, t239);
     			append_dev(div122, br9);
-    			append_dev(div126, t239);
+    			append_dev(div126, t240);
     			append_dev(div126, div123);
-    			append_dev(div123, t240);
     			append_dev(div123, t241);
-    			append_dev(div126, t242);
+    			append_dev(div123, t242);
+    			append_dev(div126, t243);
     			append_dev(div126, input8);
 
     			set_input_value(input8, ctx.D_recovery_severe);
 
-    			append_dev(div126, t243);
+    			append_dev(div126, t244);
     			append_dev(div126, div124);
-    			append_dev(div124, t244);
+    			append_dev(div124, t245);
     			append_dev(div124, br10);
-    			append_dev(div126, t245);
+    			append_dev(div126, t246);
     			append_dev(div126, div125);
-    			append_dev(div125, t246);
     			append_dev(div125, t247);
-    			append_dev(div126, t248);
+    			append_dev(div125, t248);
+    			append_dev(div126, t249);
     			append_dev(div126, input9);
 
     			set_input_value(input9, ctx.D_recovery_mild);
 
-    			append_dev(div133, t249);
+    			append_dev(div133, t250);
     			append_dev(div133, div132);
     			append_dev(div132, div127);
-    			append_dev(div132, t251);
+    			append_dev(div132, t252);
     			append_dev(div132, div128);
-    			append_dev(div128, t252);
+    			append_dev(div128, t253);
     			append_dev(div128, br11);
-    			append_dev(div132, t253);
+    			append_dev(div132, t254);
     			append_dev(div132, div129);
-    			append_dev(div129, t254);
     			append_dev(div129, t255);
-    			append_dev(div132, t256);
+    			append_dev(div129, t256);
+    			append_dev(div132, t257);
     			append_dev(div132, input10);
 
     			set_input_value(input10, ctx.P_SEVERE);
 
-    			append_dev(div132, t257);
+    			append_dev(div132, t258);
     			append_dev(div132, div130);
-    			append_dev(div130, t258);
+    			append_dev(div130, t259);
     			append_dev(div130, br12);
-    			append_dev(div132, t259);
+    			append_dev(div132, t260);
     			append_dev(div132, div131);
-    			append_dev(div131, t260);
     			append_dev(div131, t261);
-    			append_dev(div132, t262);
+    			append_dev(div131, t262);
+    			append_dev(div132, t263);
     			append_dev(div132, input11);
 
     			set_input_value(input11, ctx.D_hospital_lag);
 
-    			insert_dev(target, t263, anchor);
-    			insert_dev(target, div135, anchor);
     			insert_dev(target, t264, anchor);
+    			insert_dev(target, div135, anchor);
+    			insert_dev(target, t265, anchor);
     			insert_dev(target, p0, anchor);
     			append_dev(p0, b1);
     			append_dev(p0, br13);
-    			append_dev(p0, t266);
+    			append_dev(p0, t267);
     			append_dev(p0, a0);
-    			append_dev(p0, t268);
+    			append_dev(p0, t269);
     			append_dev(p0, a1);
-    			insert_dev(target, t270, anchor);
+    			insert_dev(target, t271, anchor);
     			insert_dev(target, p1, anchor);
     			append_dev(p1, b2);
     			append_dev(p1, br14);
-    			append_dev(p1, t272);
+    			append_dev(p1, t273);
     			append_dev(p1, i14);
-    			append_dev(p1, t274);
-    			insert_dev(target, t275, anchor);
+    			append_dev(p1, t275);
+    			insert_dev(target, t276, anchor);
     			insert_dev(target, p2, anchor);
     			append_dev(p2, b3);
     			append_dev(p2, br15);
-    			append_dev(p2, t277);
-    			insert_dev(target, t278, anchor);
+    			append_dev(p2, t278);
+    			insert_dev(target, t279, anchor);
     			insert_dev(target, p3, anchor);
-    			append_dev(p3, t279);
+    			append_dev(p3, t280);
     			append_dev(p3, italic0);
-    			append_dev(p3, t281);
-    			html_tag_3.m(p3);
     			append_dev(p3, t282);
-    			insert_dev(target, t283, anchor);
+    			html_tag_3.m(p3);
+    			append_dev(p3, t283);
+    			insert_dev(target, t284, anchor);
     			insert_dev(target, p4, anchor);
-    			append_dev(p4, t284);
+    			append_dev(p4, t285);
     			append_dev(p4, italic1);
-    			append_dev(p4, t286);
-    			html_tag_4.m(p4);
     			append_dev(p4, t287);
-    			insert_dev(target, t288, anchor);
+    			html_tag_4.m(p4);
+    			append_dev(p4, t288);
+    			insert_dev(target, t289, anchor);
     			insert_dev(target, p5, anchor);
-    			insert_dev(target, t290, anchor);
+    			insert_dev(target, t291, anchor);
     			insert_dev(target, p6, anchor);
     			append_dev(p6, b4);
     			append_dev(p6, br16);
-    			append_dev(p6, t292);
-    			insert_dev(target, t293, anchor);
+    			append_dev(p6, t293);
+    			insert_dev(target, t294, anchor);
     			insert_dev(target, p7, anchor);
-    			insert_dev(target, t295, anchor);
+    			insert_dev(target, t296, anchor);
     			insert_dev(target, p8, anchor);
     			append_dev(p8, b5);
     			append_dev(p8, br17);
-    			append_dev(p8, t297);
+    			append_dev(p8, t298);
     			insert_dev(target, p9, anchor);
-    			append_dev(p9, t298);
+    			append_dev(p9, t299);
     			append_dev(p9, a2);
-    			append_dev(p9, t300);
+    			append_dev(p9, t301);
     			append_dev(p9, a3);
-    			append_dev(p9, t302);
-    			insert_dev(target, t303, anchor);
+    			append_dev(p9, t303);
+    			insert_dev(target, t304, anchor);
     			insert_dev(target, p10, anchor);
-    			insert_dev(target, t305, anchor);
+    			insert_dev(target, t306, anchor);
     			insert_dev(target, p11, anchor);
-    			append_dev(p11, t306);
+    			append_dev(p11, t307);
     			append_dev(p11, b6);
     			append_dev(b6, a4);
-    			append_dev(b6, t308);
-    			append_dev(p11, t309);
+    			append_dev(b6, t309);
+    			append_dev(p11, t310);
     			append_dev(p11, b7);
-    			append_dev(p11, t311);
+    			append_dev(p11, t312);
     			append_dev(p11, span16);
     			append_dev(span16, b8);
-    			append_dev(p11, t313);
+    			append_dev(p11, t314);
     			append_dev(p11, span17);
     			append_dev(span17, b9);
-    			append_dev(p11, t315);
+    			append_dev(p11, t316);
     			append_dev(p11, span18);
     			append_dev(span18, b10);
-    			append_dev(p11, t317);
+    			append_dev(p11, t318);
     			append_dev(p11, a5);
-    			append_dev(p11, t319);
+    			append_dev(p11, t320);
     			append_dev(p11, a6);
-    			append_dev(p11, t321);
+    			append_dev(p11, t322);
     			append_dev(p11, span19);
     			span19.innerHTML = ctx.ode_eqn;
-    			append_dev(p11, t322);
-    			insert_dev(target, t323, anchor);
+    			append_dev(p11, t323);
+    			insert_dev(target, t324, anchor);
     			insert_dev(target, p12, anchor);
-    			append_dev(p12, t324);
     			append_dev(p12, t325);
     			append_dev(p12, t326);
+    			append_dev(p12, t327);
     			append_dev(p12, a7);
-    			append_dev(p12, t328);
+    			append_dev(p12, t329);
     			append_dev(p12, input12);
 
     			set_input_value(input12, ctx.p_num_ind);
 
-    			append_dev(p12, t329);
     			append_dev(p12, t330);
     			append_dev(p12, t331);
+    			append_dev(p12, t332);
     			append_dev(p12, a8);
-    			append_dev(p12, t333);
-    			insert_dev(target, t334, anchor);
+    			append_dev(p12, t334);
+    			insert_dev(target, t335, anchor);
     			insert_dev(target, p13, anchor);
-    			insert_dev(target, t336, anchor);
+    			insert_dev(target, t337, anchor);
     			insert_dev(target, div136, anchor);
     			append_dev(div136, table);
     			append_dev(table, tr0);
     			append_dev(tr0, th0);
-    			append_dev(tr0, t337);
+    			append_dev(tr0, t338);
     			append_dev(tr0, th1);
-    			append_dev(tr0, t339);
+    			append_dev(tr0, t340);
     			append_dev(tr0, th2);
-    			append_dev(th2, t340);
-    			append_dev(th2, br18);
     			append_dev(th2, t341);
+    			append_dev(th2, br18);
+    			append_dev(th2, t342);
     			html_tag_5.m(th2);
-    			append_dev(tr0, t342);
+    			append_dev(tr0, t343);
     			append_dev(tr0, th3);
-    			append_dev(th3, t343);
-    			append_dev(th3, br19);
     			append_dev(th3, t344);
-    			html_tag_6.m(th3);
+    			append_dev(th3, br19);
     			append_dev(th3, t345);
-    			append_dev(tr0, t346);
+    			html_tag_6.m(th3);
+    			append_dev(th3, t346);
+    			append_dev(tr0, t347);
     			append_dev(tr0, th4);
-    			append_dev(th4, t347);
-    			append_dev(th4, br20);
     			append_dev(th4, t348);
-    			html_tag_7.m(th4);
+    			append_dev(th4, br20);
     			append_dev(th4, t349);
-    			append_dev(table, t350);
+    			html_tag_7.m(th4);
+    			append_dev(th4, t350);
+    			append_dev(table, t351);
     			append_dev(table, tr1);
     			append_dev(tr1, td0);
     			append_dev(td0, a9);
-    			append_dev(tr1, t352);
+    			append_dev(tr1, t353);
     			append_dev(tr1, td1);
-    			append_dev(tr1, t354);
+    			append_dev(tr1, t355);
     			append_dev(tr1, td2);
-    			append_dev(tr1, t356);
+    			append_dev(tr1, t357);
     			append_dev(tr1, td3);
-    			append_dev(tr1, t358);
+    			append_dev(tr1, t359);
     			append_dev(tr1, td4);
-    			append_dev(table, t360);
+    			append_dev(table, t361);
     			append_dev(table, tr2);
     			append_dev(tr2, td5);
     			append_dev(td5, a10);
-    			append_dev(tr2, t362);
+    			append_dev(tr2, t363);
     			append_dev(tr2, td6);
-    			append_dev(tr2, t364);
+    			append_dev(tr2, t365);
     			append_dev(tr2, td7);
-    			append_dev(tr2, t366);
+    			append_dev(tr2, t367);
     			append_dev(tr2, td8);
-    			append_dev(tr2, t368);
+    			append_dev(tr2, t369);
     			append_dev(tr2, td9);
-    			append_dev(table, t370);
+    			append_dev(table, t371);
     			append_dev(table, tr3);
     			append_dev(tr3, td10);
     			append_dev(td10, a11);
-    			append_dev(tr3, t372);
+    			append_dev(tr3, t373);
     			append_dev(tr3, td11);
-    			append_dev(tr3, t374);
+    			append_dev(tr3, t375);
     			append_dev(tr3, td12);
-    			append_dev(tr3, t376);
+    			append_dev(tr3, t377);
     			append_dev(tr3, td13);
-    			append_dev(tr3, t378);
+    			append_dev(tr3, t379);
     			append_dev(tr3, td14);
-    			append_dev(table, t380);
+    			append_dev(table, t381);
     			append_dev(table, tr4);
     			append_dev(tr4, td15);
     			append_dev(td15, a12);
-    			append_dev(tr4, t382);
+    			append_dev(tr4, t383);
     			append_dev(tr4, td16);
-    			append_dev(tr4, t384);
+    			append_dev(tr4, t385);
     			append_dev(tr4, td17);
-    			append_dev(tr4, t386);
-    			append_dev(tr4, td18);
     			append_dev(tr4, t387);
+    			append_dev(tr4, td18);
+    			append_dev(tr4, t388);
     			append_dev(tr4, td19);
-    			append_dev(table, t388);
+    			append_dev(table, t389);
     			append_dev(table, tr5);
     			append_dev(tr5, td20);
     			append_dev(td20, a13);
-    			append_dev(tr5, t390);
+    			append_dev(tr5, t391);
     			append_dev(tr5, td21);
-    			append_dev(tr5, t392);
+    			append_dev(tr5, t393);
     			append_dev(tr5, td22);
-    			append_dev(tr5, t394);
+    			append_dev(tr5, t395);
     			append_dev(tr5, td23);
-    			append_dev(tr5, t396);
+    			append_dev(tr5, t397);
     			append_dev(tr5, td24);
-    			append_dev(table, t397);
+    			append_dev(table, t398);
     			append_dev(table, tr6);
     			append_dev(tr6, td25);
     			append_dev(td25, a14);
-    			append_dev(tr6, t399);
+    			append_dev(tr6, t400);
     			append_dev(tr6, td26);
-    			append_dev(tr6, t401);
+    			append_dev(tr6, t402);
     			append_dev(tr6, td27);
-    			append_dev(tr6, t403);
+    			append_dev(tr6, t404);
     			append_dev(tr6, td28);
-    			append_dev(tr6, t405);
+    			append_dev(tr6, t406);
     			append_dev(tr6, td29);
-    			append_dev(table, t407);
+    			append_dev(table, t408);
     			append_dev(table, tr7);
     			append_dev(tr7, td30);
     			append_dev(td30, a15);
-    			append_dev(tr7, t409);
+    			append_dev(tr7, t410);
     			append_dev(tr7, td31);
-    			append_dev(tr7, t411);
+    			append_dev(tr7, t412);
     			append_dev(tr7, td32);
-    			append_dev(tr7, t413);
+    			append_dev(tr7, t414);
     			append_dev(tr7, td33);
-    			append_dev(tr7, t415);
+    			append_dev(tr7, t416);
     			append_dev(tr7, td34);
-    			append_dev(table, t417);
+    			append_dev(table, t418);
     			append_dev(table, tr8);
     			append_dev(tr8, td35);
     			append_dev(td35, a16);
-    			append_dev(tr8, t419);
+    			append_dev(tr8, t420);
     			append_dev(tr8, td36);
-    			append_dev(tr8, t421);
-    			append_dev(tr8, td37);
     			append_dev(tr8, t422);
+    			append_dev(tr8, td37);
+    			append_dev(tr8, t423);
     			append_dev(tr8, td38);
-    			append_dev(tr8, t424);
+    			append_dev(tr8, t425);
     			append_dev(tr8, td39);
-    			append_dev(table, t425);
+    			append_dev(table, t426);
     			append_dev(table, tr9);
     			append_dev(tr9, td40);
     			append_dev(td40, a17);
-    			append_dev(tr9, t427);
+    			append_dev(tr9, t428);
     			append_dev(tr9, td41);
-    			append_dev(tr9, t429);
+    			append_dev(tr9, t430);
     			append_dev(tr9, td42);
-    			append_dev(tr9, t431);
-    			append_dev(tr9, td43);
     			append_dev(tr9, t432);
+    			append_dev(tr9, td43);
+    			append_dev(tr9, t433);
     			append_dev(tr9, td44);
-    			append_dev(table, t433);
+    			append_dev(table, t434);
     			append_dev(table, tr10);
     			append_dev(tr10, td45);
     			append_dev(td45, a18);
-    			append_dev(tr10, t435);
+    			append_dev(tr10, t436);
     			append_dev(tr10, td46);
-    			append_dev(tr10, t437);
-    			append_dev(tr10, td47);
     			append_dev(tr10, t438);
+    			append_dev(tr10, td47);
+    			append_dev(tr10, t439);
     			append_dev(tr10, td48);
-    			append_dev(tr10, t440);
+    			append_dev(tr10, t441);
     			append_dev(tr10, td49);
-    			append_dev(tr10, t442);
+    			append_dev(tr10, t443);
     			append_dev(tr10, td50);
-    			append_dev(table, t443);
+    			append_dev(table, t444);
     			append_dev(table, tr11);
     			append_dev(tr11, td51);
     			append_dev(td51, a19);
-    			append_dev(tr11, t445);
+    			append_dev(tr11, t446);
     			append_dev(tr11, td52);
-    			append_dev(tr11, t447);
+    			append_dev(tr11, t448);
     			append_dev(tr11, td53);
-    			append_dev(tr11, t449);
-    			append_dev(tr11, td54);
     			append_dev(tr11, t450);
+    			append_dev(tr11, td54);
+    			append_dev(tr11, t451);
     			append_dev(tr11, td55);
-    			insert_dev(target, t451, anchor);
+    			insert_dev(target, t452, anchor);
     			insert_dev(target, p14, anchor);
-    			append_dev(p14, t452);
+    			append_dev(p14, t453);
     			append_dev(p14, a20);
-    			append_dev(p14, t454);
+    			append_dev(p14, t455);
     			append_dev(p14, a21);
-    			append_dev(p14, t456);
-    			insert_dev(target, t457, anchor);
+    			append_dev(p14, t457);
+    			insert_dev(target, t458, anchor);
     			insert_dev(target, p15, anchor);
-    			append_dev(p15, t458);
+    			append_dev(p15, t459);
     			append_dev(p15, a22);
-    			append_dev(p15, t460);
+    			append_dev(p15, t461);
     			append_dev(p15, a23);
-    			append_dev(p15, t462);
+    			append_dev(p15, t463);
     			append_dev(p15, a24);
-    			append_dev(p15, t464);
-    			insert_dev(target, t465, anchor);
+    			append_dev(p15, t465);
+    			insert_dev(target, t466, anchor);
     			insert_dev(target, p16, anchor);
     			append_dev(p16, b11);
     			append_dev(p16, br21);
-    			append_dev(p16, t467);
-    			html_tag_8.m(p16);
     			append_dev(p16, t468);
+    			html_tag_8.m(p16);
+    			append_dev(p16, t469);
     			append_dev(p16, i15);
-    			append_dev(p16, t470);
+    			append_dev(p16, t471);
     			append_dev(p16, i16);
-    			append_dev(p16, t472);
+    			append_dev(p16, t473);
     			append_dev(p16, i17);
-    			append_dev(p16, t474);
-    			insert_dev(target, t475, anchor);
+    			append_dev(p16, t475);
+    			insert_dev(target, t476, anchor);
     			insert_dev(target, p17, anchor);
     			append_dev(p17, b12);
     			append_dev(p17, br22);
-    			append_dev(p17, t477);
+    			append_dev(p17, t478);
     			append_dev(p17, a25);
-    			append_dev(p17, t479);
+    			append_dev(p17, t480);
     			append_dev(p17, a26);
-    			append_dev(p17, t481);
+    			append_dev(p17, t482);
     			append_dev(p17, a27);
-    			append_dev(p17, t483);
+    			append_dev(p17, t484);
     			append_dev(p17, a28);
-    			append_dev(p17, t485);
-    			insert_dev(target, t486, anchor);
+    			append_dev(p17, t486);
+    			insert_dev(target, t487, anchor);
     			insert_dev(target, div139, anchor);
     			append_dev(div139, div138);
     			append_dev(div138, div137);
-    			append_dev(div138, t488);
+    			append_dev(div138, t489);
     			append_dev(div138, form);
     			append_dev(form, textarea);
     			current = true;
@@ -31150,7 +27042,7 @@
     				if (if_block0) {
     					if_block0.p(changed, ctx);
     				} else {
-    					if_block0 = create_if_block_1$3(ctx);
+    					if_block0 = create_if_block_1$1(ctx);
     					if_block0.c();
     					if_block0.m(div59, t135);
     				}
@@ -31179,29 +27071,27 @@
     				set_style(div67, "visibility", ((ctx.xScaleTime(ctx.InterventionTime) < (width$1 - ctx.padding.right)) ? 'visible':'hidden'));
     			}
 
-    			var select_changes = {};
-    			if (!updating_selectedValue && changed.selectedValue) {
-    				select_changes.selectedValue = ctx.selectedValue;
-    			}
-    			select.$set(select_changes);
-
     			if (changed.country || changed.province) show_if = checkCountryListed(ctx.country, ctx.province);
 
     			if (show_if) {
     				if (if_block1) {
     					if_block1.p(changed, ctx);
     				} else {
-    					if_block1 = create_if_block$4(ctx);
+    					if_block1 = create_if_block$1(ctx);
     					if_block1.c();
-    					if_block1.m(div70, t149);
+    					if_block1.m(div69, t148);
     				}
     			} else if (if_block1) {
     				if_block1.d(1);
     				if_block1 = null;
     			}
 
-    			if ((!current || changed.N) && t150_value !== (t150_value = format(",")(ctx.Math.round(ctx.N)) + "")) {
-    				set_data_dev(t150, t150_value);
+    			if (!current || changed.country) {
+    				set_data_dev(t148, ctx.country);
+    			}
+
+    			if ((!current || changed.N) && t151_value !== (t151_value = format(",")(ctx.Math.round(ctx.N)) + "")) {
+    				set_data_dev(t151, t151_value);
     			}
 
     			info_1.ctx = ctx;
@@ -31216,12 +27106,12 @@
     				info_2.block.p(changed, assign(assign({}, ctx), info_2.resolved));
     			}
 
-    			if ((!current || changed.total_infected) && t167_value !== (t167_value = format(",")(ctx.Math.round(ctx.Math.max(...ctx.total_infected))) + "")) {
-    				set_data_dev(t167, t167_value);
+    			if ((!current || changed.total_infected) && t168_value !== (t168_value = format(",")(ctx.Math.round(ctx.Math.max(...ctx.total_infected))) + "")) {
+    				set_data_dev(t168, t168_value);
     			}
 
-    			if ((!current || changed.totalDeaths) && t170_value !== (t170_value = format(",")(ctx.Math.round(ctx.totalDeaths)) + "")) {
-    				set_data_dev(t170, t170_value);
+    			if ((!current || changed.totalDeaths) && t171_value !== (t171_value = format(",")(ctx.Math.round(ctx.totalDeaths)) + "")) {
+    				set_data_dev(t171, t171_value);
     			}
 
     			var checkbox7_changes = {};
@@ -31243,47 +27133,47 @@
     			checkbox9.$set(checkbox9_changes);
 
     			if (!current || changed.country) {
-    				set_data_dev(t187, ctx.country);
+    				set_data_dev(t188, ctx.country);
     			}
 
-    			if ((!current || changed.dayZero) && t190_value !== (t190_value = getDateFromDayZero(ctx.dayZero) + "")) {
-    				set_data_dev(t190, t190_value);
+    			if ((!current || changed.dayZero) && t191_value !== (t191_value = getDateFromDayZero(ctx.dayZero) + "")) {
+    				set_data_dev(t191, t191_value);
     			}
 
     			if (changed.dayZero) set_input_value(input1, ctx.dayZero);
 
     			if (!current || changed.I0) {
-    				set_data_dev(t195, ctx.I0);
+    				set_data_dev(t196, ctx.I0);
     			}
 
     			if (changed.I0) set_input_value(input2, ctx.I0);
 
     			if (!current || changed.R0) {
-    				set_data_dev(t202, ctx.R0);
+    				set_data_dev(t203, ctx.R0);
     			}
 
     			if (changed.R0) set_input_value(input3, ctx.R0);
 
-    			if ((!current || changed.D_incbation) && t210_value !== (t210_value = (ctx.D_incbation).toFixed(2) + "")) {
-    				set_data_dev(t210, t210_value);
+    			if ((!current || changed.D_incbation) && t211_value !== (t211_value = (ctx.D_incbation).toFixed(2) + "")) {
+    				set_data_dev(t211, t211_value);
     			}
 
     			if (changed.D_incbation) set_input_value(input4, ctx.D_incbation);
 
     			if (!current || changed.D_infectious) {
-    				set_data_dev(t217, ctx.D_infectious);
+    				set_data_dev(t218, ctx.D_infectious);
     			}
 
     			if (changed.D_infectious) set_input_value(input5, ctx.D_infectious);
 
-    			if ((!current || changed.CFR) && t226_value !== (t226_value = (ctx.CFR*100).toFixed(2) + "")) {
-    				set_data_dev(t226, t226_value);
+    			if ((!current || changed.CFR) && t227_value !== (t227_value = (ctx.CFR*100).toFixed(2) + "")) {
+    				set_data_dev(t227, t227_value);
     			}
 
     			if (changed.CFR) set_input_value(input6, ctx.CFR);
 
     			if (!current || changed.Time_to_death) {
-    				set_data_dev(t232, ctx.Time_to_death);
+    				set_data_dev(t233, ctx.Time_to_death);
     			}
 
     			if (changed.Time_to_death) set_input_value(input7, ctx.Time_to_death);
@@ -31293,25 +27183,25 @@
     			}
 
     			if (!current || changed.D_recovery_severe) {
-    				set_data_dev(t240, ctx.D_recovery_severe);
+    				set_data_dev(t241, ctx.D_recovery_severe);
     			}
 
     			if (changed.D_recovery_severe) set_input_value(input8, ctx.D_recovery_severe);
 
     			if (!current || changed.D_recovery_mild) {
-    				set_data_dev(t246, ctx.D_recovery_mild);
+    				set_data_dev(t247, ctx.D_recovery_mild);
     			}
 
     			if (changed.D_recovery_mild) set_input_value(input9, ctx.D_recovery_mild);
 
-    			if ((!current || changed.P_SEVERE) && t254_value !== (t254_value = (ctx.P_SEVERE*100).toFixed(2) + "")) {
-    				set_data_dev(t254, t254_value);
+    			if ((!current || changed.P_SEVERE) && t255_value !== (t255_value = (ctx.P_SEVERE*100).toFixed(2) + "")) {
+    				set_data_dev(t255, t255_value);
     			}
 
     			if (changed.P_SEVERE) set_input_value(input10, ctx.P_SEVERE);
 
     			if (!current || changed.D_hospital_lag) {
-    				set_data_dev(t260, ctx.D_hospital_lag);
+    				set_data_dev(t261, ctx.D_hospital_lag);
     			}
 
     			if (changed.D_hospital_lag) set_input_value(input11, ctx.D_hospital_lag);
@@ -31320,8 +27210,8 @@
     				span19.innerHTML = ctx.ode_eqn;
     			}
 
-    			if ((!current || changed.indexToTime || changed.active_) && t325_value !== (t325_value = ctx.Math.round(ctx.indexToTime(ctx.active_)) + "")) {
-    				set_data_dev(t325, t325_value);
+    			if ((!current || changed.indexToTime || changed.active_) && t326_value !== (t326_value = ctx.Math.round(ctx.indexToTime(ctx.active_)) + "")) {
+    				set_data_dev(t326, t326_value);
     			}
 
     			if (changed.p_num_ind && (input12.value !== ctx.p_num_ind)) set_input_value(input12, ctx.p_num_ind);
@@ -31330,8 +27220,8 @@
     				set_style(input12, "width", "" + (ctx.Math.ceil(ctx.Math.log10(ctx.p_num_ind))*9.5 + 5) + "px");
     			}
 
-    			if ((!current || changed.Iters || changed.active_ || changed.p_num_ind) && t330_value !== (t330_value = ((1-(ctx.Math.pow(1 - (ctx.Iters[ctx.active_][2])*(0.45/100), ctx.p_num_ind)))*100).toFixed(5) + "")) {
-    				set_data_dev(t330, t330_value);
+    			if ((!current || changed.Iters || changed.active_ || changed.p_num_ind) && t331_value !== (t331_value = ((1-(ctx.Math.pow(1 - (ctx.Iters[ctx.active_][2])*(0.45/100), ctx.p_num_ind)))*100).toFixed(5) + "")) {
+    				set_data_dev(t331, t331_value);
     			}
 
     			if (!current || changed.state) {
@@ -31371,8 +27261,6 @@
 
     			transition_in(info.block);
 
-    			transition_in(select.$$.fragment, local);
-
     			transition_in(checkbox7.$$.fragment, local);
 
     			transition_in(checkbox8.$$.fragment, local);
@@ -31403,7 +27291,6 @@
     				transition_out(block);
     			}
 
-    			transition_out(select.$$.fragment, local);
     			transition_out(checkbox7.$$.fragment, local);
     			transition_out(checkbox8.$$.fragment, local);
     			transition_out(checkbox9.$$.fragment, local);
@@ -31452,9 +27339,6 @@
     			info = null;
 
     			if (if_block0) if_block0.d();
-
-    			destroy_component(select);
-
     			if (if_block1) if_block1.d();
 
     			info_1.block.d();
@@ -31472,55 +27356,55 @@
     			destroy_component(checkbox9);
 
     			if (detaching) {
-    				detach_dev(t178);
+    				detach_dev(t179);
     				detach_dev(div134);
-    				detach_dev(t263);
-    				detach_dev(div135);
     				detach_dev(t264);
+    				detach_dev(div135);
+    				detach_dev(t265);
     				detach_dev(p0);
-    				detach_dev(t270);
+    				detach_dev(t271);
     				detach_dev(p1);
-    				detach_dev(t275);
+    				detach_dev(t276);
     				detach_dev(p2);
-    				detach_dev(t278);
+    				detach_dev(t279);
     				detach_dev(p3);
-    				detach_dev(t283);
+    				detach_dev(t284);
     				detach_dev(p4);
-    				detach_dev(t288);
+    				detach_dev(t289);
     				detach_dev(p5);
-    				detach_dev(t290);
+    				detach_dev(t291);
     				detach_dev(p6);
-    				detach_dev(t293);
+    				detach_dev(t294);
     				detach_dev(p7);
-    				detach_dev(t295);
+    				detach_dev(t296);
     				detach_dev(p8);
     				detach_dev(p9);
-    				detach_dev(t303);
+    				detach_dev(t304);
     				detach_dev(p10);
-    				detach_dev(t305);
+    				detach_dev(t306);
     				detach_dev(p11);
-    				detach_dev(t323);
+    				detach_dev(t324);
     				detach_dev(p12);
-    				detach_dev(t334);
+    				detach_dev(t335);
     				detach_dev(p13);
-    				detach_dev(t336);
+    				detach_dev(t337);
     				detach_dev(div136);
-    				detach_dev(t451);
+    				detach_dev(t452);
     				detach_dev(p14);
-    				detach_dev(t457);
+    				detach_dev(t458);
     				detach_dev(p15);
-    				detach_dev(t465);
+    				detach_dev(t466);
     				detach_dev(p16);
-    				detach_dev(t475);
+    				detach_dev(t476);
     				detach_dev(p17);
-    				detach_dev(t486);
+    				detach_dev(t487);
     				detach_dev(div139);
     			}
 
     			run_all(dispose);
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$9.name, type: "component", source: "", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_fragment$3.name, type: "component", source: "", ctx });
     	return block;
     }
 
@@ -31536,8 +27420,6 @@
 
     var Rt_s   = "\\color{#CCC}{\\frac{\\mathcal{R}_{t}}{T_{\\text{inf}}}} ";
 
-    let answer = ' ';
-
     function formatNumber$1(num) {
       return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')
     }
@@ -31550,7 +27432,7 @@
       });
     }
 
-    function instance$9($$self, $$props, $$invalidate) {
+    function instance$3($$self, $$props, $$invalidate) {
     	
       var sum = function(arr, bools){
         var x = 0;
@@ -31812,56 +27694,6 @@
         return milestones
       }
 
-    let selected;
-
-    var items = [];
-
-    var label = "";
-
-    for (const [key, value] of Object.entries(countryParameters)) {
-        //console.log(key, value);
-        for (const [key2, value2] of Object.entries(countryParameters[key])) {
-    	console.log(key, key2);
-    	label = (key2 == "All") ? key : key.concat(", ", key2); 
-    	console.log(label);
-    	items.push({value: key.concat("+", key2), label: label, group : 'Irr'});
-        }
-    }
-
-
-    console.log(items);
-
-    var items2 = [
-        {value: 'United Kingdom+All', label: 'United Kingdom', group: 'Irr'},
-        {value: 'China+Hubei', label: 'China, Hubei', group: 'Irr'},
-        {value: 'Germany+All', label: 'Germany', group: 'Irr'},
-        {value: 'Brazil+All', label: 'Brazil', group: 'Irr'},
-        {value: 'Turkey+All', label: 'Turkey', group: 'Irr'}
-    ];
-    	
-    let selectedValue = undefined;
-
-    function handleSelect(value) {
-        console.log("Handle Select");
-        console.log(selectedValue.value);
-
-        var myCountry = selectedValue.value;
-
-        var splitted = selectedValue.value.split("+");
-        console.log(splitted);
-
-        $$invalidate('country', country = splitted[0]), $$invalidate('province', province = (splitted.length ? splitted[1] : "All"));
-
-        console.log("Country", country);
-        console.log("Province", province);
-        
-        $$invalidate('logN', logN = getCountryParameters(country, province, "logN"));
-        $$invalidate('dayZero', dayZero = getCountryParameters(country, province, "dayZero"));
-        $$invalidate('R0', R0 = getCountryParameters(country, province, "R0"));
-        $$invalidate('InterventionTime', InterventionTime = getCountryParameters(country, province, "InterventionTime"));
-
-    }
-
     	function checkbox1_checked_binding(value) {
     		checked[4] = value;
     		$$invalidate('checked', checked);
@@ -31904,29 +27736,24 @@
     		$$invalidate('InterventionAmt', InterventionAmt);
     	}
 
-    	function select_selectedValue_binding(value_5) {
-    		selectedValue = value_5;
-    		$$invalidate('selectedValue', selectedValue);
-    	}
-
     	const click_handler = () => setInterventionAmt(1);
 
     	const click_handler_1 = () => setInterventionAmt(1/R0);
 
     	const click_handler_2 = () => setInterventionAmt(1/R0*0.8);
 
-    	function checkbox7_checked_binding(value_6) {
-    		log = value_6;
+    	function checkbox7_checked_binding(value_5) {
+    		log = value_5;
     		$$invalidate('log', log);
     	}
 
-    	function checkbox8_checked_binding(value_7) {
-    		showJHU = value_7;
+    	function checkbox8_checked_binding(value_6) {
+    		showJHU = value_6;
     		$$invalidate('showJHU', showJHU);
     	}
 
-    	function checkbox9_checked_binding(value_8) {
-    		showSIM = value_8;
+    	function checkbox9_checked_binding(value_7) {
+    		showSIM = value_7;
     		$$invalidate('showSIM', showSIM);
     	}
 
@@ -32010,12 +27837,6 @@
     		if ('Tinc_s' in $$props) $$invalidate('Tinc_s', Tinc_s = $$props.Tinc_s);
     		if ('Tinf_s' in $$props) $$invalidate('Tinf_s', Tinf_s = $$props.Tinf_s);
     		if ('Rt_s' in $$props) $$invalidate('Rt_s', Rt_s = $$props.Rt_s);
-    		if ('selected' in $$props) selected = $$props.selected;
-    		if ('answer' in $$props) answer = $$props.answer;
-    		if ('items' in $$props) $$invalidate('items', items = $$props.items);
-    		if ('label' in $$props) label = $$props.label;
-    		if ('items2' in $$props) items2 = $$props.items2;
-    		if ('selectedValue' in $$props) $$invalidate('selectedValue', selectedValue = $$props.selectedValue);
     		if ('country' in $$props) $$invalidate('country', country = $$props.country);
     		if ('province' in $$props) $$invalidate('province', province = $$props.province);
     		if ('dayZero' in $$props) $$invalidate('dayZero', dayZero = $$props.dayZero);
@@ -32168,9 +27989,6 @@
     		colors,
     		lock_yaxis,
     		padding,
-    		items,
-    		selectedValue,
-    		handleSelect,
     		country,
     		province,
     		dayZero,
@@ -32224,7 +28042,6 @@
     		chart_checked_binding,
     		chart_active_binding,
     		input0_change_input_handler,
-    		select_selectedValue_binding,
     		click_handler,
     		click_handler_1,
     		click_handler_2,
@@ -32249,8 +28066,8 @@
     class App extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$9, create_fragment$9, safe_not_equal, []);
-    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "App", options, id: create_fragment$9.name });
+    		init(this, options, instance$3, create_fragment$3, safe_not_equal, []);
+    		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "App", options, id: create_fragment$3.name });
     	}
     }
 

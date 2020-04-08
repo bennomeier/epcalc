@@ -2,6 +2,8 @@
 
 This is a fork of @gabgoh's epcalc epidemic calculator that shows country-specific up to date real world Deaths and Confirmed Cases as listed by the Johns Hopkins University Github Repository https://github.com/CSSEGISandData .
 
+* Update 2020/04/08: Add Dropdown for Country/Region Selection. Add Argentina, Pakistan, Swityerland, Spain.
+
 * Update 2020/03/31: Add Turkey and Sweden
 
 * Update 2020/03/30: Plot daily increase in the number of confirmed cases, update documentation.

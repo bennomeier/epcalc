@@ -21,6 +21,7 @@ import { getMaxCases } from './jhu.js';
 import { getCountryParameters } from './jhu.js';
 import { getDateFromDayZero } from './jhu.js';
 import { checkCountryListed } from './jhu.js';
+import { countryParameters } from './jhu.js';
 
   const legendheight = 67 
   function range(n){
@@ -401,6 +402,60 @@ $: totalDeaths = P[99][0]
 $: log = false
 $: showJHU = true
 $: showSIM = false
+
+let selected;
+let answer = ' ';
+
+var items = [];
+
+var label = "";
+
+for (const [key, value] of Object.entries(countryParameters)) {
+    //console.log(key, value);
+    for (const [key2, value2] of Object.entries(countryParameters[key])) {
+	console.log(key, key2);
+	label = (key2 == "All") ? key : key.concat(", ", key2); 
+	console.log(label);
+	items.push({value: key.concat("+", key2), label: label, group : 'Irr'});
+    }
+}
+
+
+console.log(items);
+
+var items2 = [
+    {value: 'United Kingdom+All', label: 'United Kingdom', group: 'Irr'},
+    {value: 'China+Hubei', label: 'China, Hubei', group: 'Irr'},
+    {value: 'Germany+All', label: 'Germany', group: 'Irr'},
+    {value: 'Brazil+All', label: 'Brazil', group: 'Irr'},
+    {value: 'Turkey+All', label: 'Turkey', group: 'Irr'}
+];
+	
+let selectedValue = undefined;
+
+function handleSelect(value) {
+    console.log("Handle Select");
+    console.log(selectedValue.value);
+
+    var myCountry = selectedValue.value;
+    var provinceThis = "All";
+
+    var splitted = selectedValue.value.split("+");
+    console.log(splitted);
+
+    country = splitted[0], province = (splitted.length ? splitted[1] : "All");
+
+    console.log("Country", country);
+    console.log("Province", province);
+    
+    logN = getCountryParameters(country, province, "logN")
+    dayZero = getCountryParameters(country, province, "dayZero")
+    R0 = getCountryParameters(country, province, "R0")
+    InterventionTime = getCountryParameters(country, province, "InterventionTime")
+
+}
+
+
 </script>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.css" integrity="sha384-bsHo4/LA+lkZv61JspMDQB9QP1TtO4IgOf2yYS+J6VdAYLVyx1c3XKcsHh0Vy8Ws" crossorigin="anonymous">
@@ -576,8 +631,9 @@ $: showSIM = false
   .population {
 	font-family: nyt-franklin,helvetica,arial,sans-serif;
       color: #888888;
-      font-size: 10pt;
+      font-size: 14pt;
       margin-bottom: 5pt;
+      margin-top: 5pt;
     }
 
   .fatalities {
@@ -634,7 +690,9 @@ button.strategy:hover{
   
   th { font-weight: 500; text-align: left; padding-bottom: 5px; vertical-align: text-top;     border-bottom: 1px solid #DDD; }
   a:link { color: grey; }
-  a:visited { color: grey; }
+a:visited { color: grey; }
+
+
 </style>
 
 <h2>Epidemic Calculator</h2>
@@ -915,12 +973,20 @@ button.strategy:hover{
      <!------------------------------------------ -->
      <!------------------------------------------ -->
 
-          <!-- Country Specific Information -->
+
+
+	 <!-- Country Specific Information -->
      <div style="position:absolute; top: 50px; left: 500px; width: 300px; height: 300px;">
        <div style="position:absolute; top: 0px; left: 0px; margin: 0px 0px 5px 4px;" class="countrybox">
 	 <div class="country">
-	 {#if checkCountryListed(country, province)}<img src="./svg/{getCountryParameters(country, province, "flag")}.svg" height="20" alt="Flag" style="margin-bottom: -3px;border:1px solid #ccc"> {/if}{country}</div>
-         <div class="population">Population: {format(",")(Math.round(N))}</div>
+
+	 <Select {items} on:select={handleSelect} bind:selectedValue></Select>
+	 
+<!--	-->
+          
+          <!-- {country} -->
+          </div> 
+         <div class="population"> {#if checkCountryListed(country, province)}<img src="./svg/{getCountryParameters(country, province, "flag")}.svg" height="20" alt="Flag" style="margin-bottom: -3px;border:1px solid #ccc"> {/if} Population: {format(",")(Math.round(N))}</div>
 
 	 	 <div class="confirmed">JHU - Confirmed Today:
 	 {#await confirmedToday then data}
