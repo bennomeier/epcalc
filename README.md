@@ -1,6 +1,12 @@
-# EPCALC Fork
+# EPCALC Fork with country specific data from Johns Hopkins University
+
+To see this code in action go to https://bennomeier.github.io/epcalc/
 
 This is a fork of @gabgoh's epcalc epidemic calculator that shows country-specific up to date real world Deaths and Confirmed Cases as listed by the Johns Hopkins University Github Repository https://github.com/CSSEGISandData .
+
+* Update 2020/04/19: Add all countries listed in the JHU repository, at least as long as they do not contain several regions. If your country/region is missing and you want it to be added, please report this as an issue. Country data are compiled by src/countryCompiler.py and included in src/jhu.js
+
+To get country information within Python I used countryinfo written by Porimol Chandro (available on PyPI). To get the countries of the JHU repository I used readJHU by @kourk0am :  https://github.com/kourk0am/JHUreader
 
 * Update 2020/04/08: Add Dropdown for Country/Region Selection. Add Argentina, Pakistan, Swityerland, Spain.
 

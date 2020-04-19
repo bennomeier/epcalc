@@ -7548,7 +7548,83 @@
 
     const file$6 = "node_modules/svelte-select/src/Select.svelte";
 
-    // (576:2) {#if isMulti && selectedValue && selectedValue.length > 0}
+    // (788:2) {#if Icon}
+    function create_if_block_6(ctx) {
+    	var switch_instance_anchor, current;
+
+    	var switch_value = ctx.Icon;
+
+    	function switch_props(ctx) {
+    		return { $$inline: true };
+    	}
+
+    	if (switch_value) {
+    		var switch_instance = new switch_value(switch_props());
+    	}
+
+    	const block = {
+    		c: function create() {
+    			if (switch_instance) switch_instance.$$.fragment.c();
+    			switch_instance_anchor = empty();
+    		},
+
+    		m: function mount(target_1, anchor) {
+    			if (switch_instance) {
+    				mount_component(switch_instance, target_1, anchor);
+    			}
+
+    			insert_dev(target_1, switch_instance_anchor, anchor);
+    			current = true;
+    		},
+
+    		p: function update(changed, ctx) {
+    			if (switch_value !== (switch_value = ctx.Icon)) {
+    				if (switch_instance) {
+    					group_outros();
+    					const old_component = switch_instance;
+    					transition_out(old_component.$$.fragment, 1, 0, () => {
+    						destroy_component(old_component, 1);
+    					});
+    					check_outros();
+    				}
+
+    				if (switch_value) {
+    					switch_instance = new switch_value(switch_props());
+
+    					switch_instance.$$.fragment.c();
+    					transition_in(switch_instance.$$.fragment, 1);
+    					mount_component(switch_instance, switch_instance_anchor.parentNode, switch_instance_anchor);
+    				} else {
+    					switch_instance = null;
+    				}
+    			}
+    		},
+
+    		i: function intro(local) {
+    			if (current) return;
+    			if (switch_instance) transition_in(switch_instance.$$.fragment, local);
+
+    			current = true;
+    		},
+
+    		o: function outro(local) {
+    			if (switch_instance) transition_out(switch_instance.$$.fragment, local);
+    			current = false;
+    		},
+
+    		d: function destroy(detaching) {
+    			if (detaching) {
+    				detach_dev(switch_instance_anchor);
+    			}
+
+    			if (switch_instance) destroy_component(switch_instance, detaching);
+    		}
+    	};
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_6.name, type: "if", source: "(788:2) {#if Icon}", ctx });
+    	return block;
+    }
+
+    // (792:2) {#if isMulti && selectedValue && selectedValue.length > 0}
     function create_if_block_5(ctx) {
     	var switch_instance_anchor, current;
 
@@ -7642,11 +7718,11 @@
     			if (switch_instance) destroy_component(switch_instance, detaching);
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_5.name, type: "if", source: "(576:2) {#if isMulti && selectedValue && selectedValue.length > 0}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_5.name, type: "if", source: "(792:2) {#if isMulti && selectedValue && selectedValue.length > 0}", ctx });
     	return block;
     }
 
-    // (599:2) {:else}
+    // (812:2) {:else}
     function create_else_block$2(ctx) {
     	var input_1, dispose;
 
@@ -7654,7 +7730,7 @@
     		ctx._inputAttributes,
     		{ placeholder: ctx.placeholderText },
     		{ style: ctx.inputStyles },
-    		{ class: "svelte-e3bo9s" }
+    		{ class: "svelte-cr4b6i" }
     	];
 
     	var input_1_data = {};
@@ -7666,7 +7742,7 @@
     		c: function create() {
     			input_1 = element("input");
     			set_attributes(input_1, input_1_data);
-    			add_location(input_1, file$6, 599, 4, 15665);
+    			add_location(input_1, file$6, 812, 4, 19805);
 
     			dispose = [
     				listen_dev(input_1, "input", ctx.input_1_input_handler_1),
@@ -7689,7 +7765,7 @@
     				(changed._inputAttributes) && ctx._inputAttributes,
     				(changed.placeholderText) && { placeholder: ctx.placeholderText },
     				(changed.inputStyles) && { style: ctx.inputStyles },
-    				{ class: "svelte-e3bo9s" }
+    				{ class: "svelte-cr4b6i" }
     			]));
     		},
 
@@ -7702,11 +7778,11 @@
     			run_all(dispose);
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_else_block$2.name, type: "else", source: "(599:2) {:else}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_else_block$2.name, type: "else", source: "(812:2) {:else}", ctx });
     	return block;
     }
 
-    // (589:2) {#if isDisabled}
+    // (803:2) {#if isDisabled}
     function create_if_block_4(ctx) {
     	var input_1, dispose;
 
@@ -7715,7 +7791,7 @@
     		{ placeholder: ctx.placeholderText },
     		{ style: ctx.inputStyles },
     		{ disabled: true },
-    		{ class: "svelte-e3bo9s" }
+    		{ class: "svelte-cr4b6i" }
     	];
 
     	var input_1_data = {};
@@ -7727,7 +7803,7 @@
     		c: function create() {
     			input_1 = element("input");
     			set_attributes(input_1, input_1_data);
-    			add_location(input_1, file$6, 589, 4, 15438);
+    			add_location(input_1, file$6, 803, 4, 19593);
 
     			dispose = [
     				listen_dev(input_1, "input", ctx.input_1_input_handler),
@@ -7751,7 +7827,7 @@
     				(changed.placeholderText) && { placeholder: ctx.placeholderText },
     				(changed.inputStyles) && { style: ctx.inputStyles },
     				{ disabled: true },
-    				{ class: "svelte-e3bo9s" }
+    				{ class: "svelte-cr4b6i" }
     			]));
     		},
 
@@ -7764,11 +7840,11 @@
     			run_all(dispose);
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_4.name, type: "if", source: "(589:2) {#if isDisabled}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_4.name, type: "if", source: "(803:2) {#if isDisabled}", ctx });
     	return block;
     }
 
-    // (610:2) {#if !isMulti && showSelectedItem }
+    // (822:2) {#if !isMulti && showSelectedItem}
     function create_if_block_3$2(ctx) {
     	var div, current, dispose;
 
@@ -7792,8 +7868,8 @@
     		c: function create() {
     			div = element("div");
     			if (switch_instance) switch_instance.$$.fragment.c();
-    			attr_dev(div, "class", "selectedItem svelte-e3bo9s");
-    			add_location(div, file$6, 610, 2, 15912);
+    			attr_dev(div, "class", "selectedItem svelte-cr4b6i");
+    			add_location(div, file$6, 822, 4, 20038);
     			dispose = listen_dev(div, "focus", ctx.handleFocus);
     		},
 
@@ -7859,11 +7935,11 @@
     			dispose();
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_3$2.name, type: "if", source: "(610:2) {#if !isMulti && showSelectedItem }", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_3$2.name, type: "if", source: "(822:2) {#if !isMulti && showSelectedItem}", ctx });
     	return block;
     }
 
-    // (616:2) {#if showSelectedItem && isClearable && !isDisabled && !isWaiting}
+    // (831:2) {#if showSelectedItem && isClearable && !isDisabled && !isWaiting}
     function create_if_block_2$2(ctx) {
     	var div, svg, path, dispose;
 
@@ -7873,17 +7949,17 @@
     			svg = svg_element("svg");
     			path = svg_element("path");
     			attr_dev(path, "fill", "currentColor");
-    			attr_dev(path, "d", "M34.923,37.251L24,26.328L13.077,37.251L9.436,33.61l10.923-10.923L9.436,11.765l3.641-3.641L24,19.047L34.923,8.124 l3.641,3.641L27.641,22.688L38.564,33.61L34.923,37.251z");
-    			add_location(path, file$6, 619, 6, 16315);
+    			attr_dev(path, "d", "M34.923,37.251L24,26.328L13.077,37.251L9.436,33.61l10.923-10.923L9.436,11.765l3.641-3.641L24,19.047L34.923,8.124\n          l3.641,3.641L27.641,22.688L38.564,33.61L34.923,37.251z");
+    			add_location(path, file$6, 838, 8, 20501);
     			attr_dev(svg, "width", "100%");
     			attr_dev(svg, "height", "100%");
     			attr_dev(svg, "viewBox", "-2 -2 50 50");
     			attr_dev(svg, "focusable", "false");
     			attr_dev(svg, "role", "presentation");
-    			attr_dev(svg, "class", "svelte-e3bo9s");
-    			add_location(svg, file$6, 617, 4, 16207);
-    			attr_dev(div, "class", "clearSelect svelte-e3bo9s");
-    			add_location(div, file$6, 616, 2, 16137);
+    			attr_dev(svg, "class", "svelte-cr4b6i");
+    			add_location(svg, file$6, 832, 6, 20360);
+    			attr_dev(div, "class", "clearSelect svelte-cr4b6i");
+    			add_location(div, file$6, 831, 4, 20290);
     			dispose = listen_dev(div, "click", prevent_default(ctx.handleClear), false, true);
     		},
 
@@ -7901,11 +7977,11 @@
     			dispose();
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_2$2.name, type: "if", source: "(616:2) {#if showSelectedItem && isClearable && !isDisabled && !isWaiting}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_2$2.name, type: "if", source: "(831:2) {#if showSelectedItem && isClearable && !isDisabled && !isWaiting}", ctx });
     	return block;
     }
 
-    // (626:2) {#if !isSearchable && !isDisabled && !isWaiting && (showSelectedItem && !isClearable || !showSelectedItem)}
+    // (847:2) {#if showChevron && !selectedValue || (!isSearchable && !isDisabled && !isWaiting && ((showSelectedItem && !isClearable) || !showSelectedItem))}
     function create_if_block_1$2(ctx) {
     	var div, svg, path;
 
@@ -7914,16 +7990,16 @@
     			div = element("div");
     			svg = svg_element("svg");
     			path = svg_element("path");
-    			attr_dev(path, "d", "M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z");
-    			add_location(path, file$6, 628, 6, 16799);
+    			attr_dev(path, "d", "M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747\n          3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0\n          1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502\n          0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0\n          0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z");
+    			add_location(path, file$6, 854, 8, 21085);
     			attr_dev(svg, "width", "100%");
     			attr_dev(svg, "height", "100%");
     			attr_dev(svg, "viewBox", "0 0 20 20");
     			attr_dev(svg, "focusable", "false");
-    			attr_dev(svg, "class", "css-19bqh2r svelte-e3bo9s");
-    			add_location(svg, file$6, 627, 4, 16702);
-    			attr_dev(div, "class", "indicator svelte-e3bo9s");
-    			add_location(div, file$6, 626, 2, 16674);
+    			attr_dev(svg, "class", "css-19bqh2r svelte-cr4b6i");
+    			add_location(svg, file$6, 848, 6, 20946);
+    			attr_dev(div, "class", "indicator svelte-cr4b6i");
+    			add_location(div, file$6, 847, 4, 20916);
     		},
 
     		m: function mount(target_1, anchor) {
@@ -7938,11 +8014,11 @@
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_1$2.name, type: "if", source: "(626:2) {#if !isSearchable && !isDisabled && !isWaiting && (showSelectedItem && !isClearable || !showSelectedItem)}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block_1$2.name, type: "if", source: "(847:2) {#if showChevron && !selectedValue || (!isSearchable && !isDisabled && !isWaiting && ((showSelectedItem && !isClearable) || !showSelectedItem))}", ctx });
     	return block;
     }
 
-    // (635:2) {#if isWaiting}
+    // (865:2) {#if isWaiting}
     function create_if_block$3(ctx) {
     	var div, svg, circle;
 
@@ -7951,7 +8027,7 @@
     			div = element("div");
     			svg = svg_element("svg");
     			circle = svg_element("circle");
-    			attr_dev(circle, "class", "spinner_path svelte-e3bo9s");
+    			attr_dev(circle, "class", "spinner_path svelte-cr4b6i");
     			attr_dev(circle, "cx", "50");
     			attr_dev(circle, "cy", "50");
     			attr_dev(circle, "r", "20");
@@ -7959,12 +8035,12 @@
     			attr_dev(circle, "stroke", "currentColor");
     			attr_dev(circle, "stroke-width", "5");
     			attr_dev(circle, "stroke-miterlimit", "10");
-    			add_location(circle, file$6, 637, 6, 17233);
-    			attr_dev(svg, "class", "spinner_icon svelte-e3bo9s");
+    			add_location(circle, file$6, 867, 8, 21566);
+    			attr_dev(svg, "class", "spinner_icon svelte-cr4b6i");
     			attr_dev(svg, "viewBox", "25 25 50 50");
-    			add_location(svg, file$6, 636, 4, 17178);
-    			attr_dev(div, "class", "spinner svelte-e3bo9s");
-    			add_location(div, file$6, 635, 2, 17152);
+    			add_location(svg, file$6, 866, 6, 21509);
+    			attr_dev(div, "class", "spinner svelte-cr4b6i");
+    			add_location(div, file$6, 865, 4, 21481);
     		},
 
     		m: function mount(target_1, anchor) {
@@ -7979,14 +8055,16 @@
     			}
     		}
     	};
-    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block$3.name, type: "if", source: "(635:2) {#if isWaiting}", ctx });
+    	dispatch_dev("SvelteRegisterBlock", { block, id: create_if_block$3.name, type: "if", source: "(865:2) {#if isWaiting}", ctx });
     	return block;
     }
 
     function create_fragment$6(ctx) {
-    	var div, t0, t1, t2, t3, t4, div_class_value, current, dispose;
+    	var div, t0, t1, t2, t3, t4, t5, div_class_value, current, dispose;
 
-    	var if_block0 = (ctx.isMulti && ctx.selectedValue && ctx.selectedValue.length > 0) && create_if_block_5(ctx);
+    	var if_block0 = (ctx.Icon) && create_if_block_6(ctx);
+
+    	var if_block1 = (ctx.isMulti && ctx.selectedValue && ctx.selectedValue.length > 0) && create_if_block_5(ctx);
 
     	function select_block_type(changed, ctx) {
     		if (ctx.isDisabled) return create_if_block_4;
@@ -7994,33 +8072,35 @@
     	}
 
     	var current_block_type = select_block_type(null, ctx);
-    	var if_block1 = current_block_type(ctx);
+    	var if_block2 = current_block_type(ctx);
 
-    	var if_block2 = (!ctx.isMulti && ctx.showSelectedItem) && create_if_block_3$2(ctx);
+    	var if_block3 = (!ctx.isMulti && ctx.showSelectedItem) && create_if_block_3$2(ctx);
 
-    	var if_block3 = (ctx.showSelectedItem && ctx.isClearable && !ctx.isDisabled && !ctx.isWaiting) && create_if_block_2$2(ctx);
+    	var if_block4 = (ctx.showSelectedItem && ctx.isClearable && !ctx.isDisabled && !ctx.isWaiting) && create_if_block_2$2(ctx);
 
-    	var if_block4 = (!ctx.isSearchable && !ctx.isDisabled && !ctx.isWaiting && (ctx.showSelectedItem && !ctx.isClearable || !ctx.showSelectedItem)) && create_if_block_1$2(ctx);
+    	var if_block5 = (ctx.showChevron && !ctx.selectedValue || (!ctx.isSearchable && !ctx.isDisabled && !ctx.isWaiting && ((ctx.showSelectedItem && !ctx.isClearable) || !ctx.showSelectedItem))) && create_if_block_1$2(ctx);
 
-    	var if_block5 = (ctx.isWaiting) && create_if_block$3(ctx);
+    	var if_block6 = (ctx.isWaiting) && create_if_block$3(ctx);
 
     	const block = {
     		c: function create() {
     			div = element("div");
     			if (if_block0) if_block0.c();
     			t0 = space();
-    			if_block1.c();
+    			if (if_block1) if_block1.c();
     			t1 = space();
-    			if (if_block2) if_block2.c();
+    			if_block2.c();
     			t2 = space();
     			if (if_block3) if_block3.c();
     			t3 = space();
     			if (if_block4) if_block4.c();
     			t4 = space();
     			if (if_block5) if_block5.c();
-    			attr_dev(div, "class", div_class_value = "" + ctx.containerClasses + " " + (ctx.hasError ? 'hasError' : '') + " svelte-e3bo9s");
+    			t5 = space();
+    			if (if_block6) if_block6.c();
+    			attr_dev(div, "class", div_class_value = "" + ctx.containerClasses + "\n  " + (ctx.hasError ? 'hasError' : '') + " svelte-cr4b6i");
     			attr_dev(div, "style", ctx.containerStyles);
-    			add_location(div, file$6, 572, 0, 14990);
+    			add_location(div, file$6, 780, 0, 19075);
 
     			dispose = [
     				listen_dev(window, "click", ctx.handleWindowClick),
@@ -8038,26 +8118,28 @@
     			insert_dev(target_1, div, anchor);
     			if (if_block0) if_block0.m(div, null);
     			append_dev(div, t0);
-    			if_block1.m(div, null);
+    			if (if_block1) if_block1.m(div, null);
     			append_dev(div, t1);
-    			if (if_block2) if_block2.m(div, null);
+    			if_block2.m(div, null);
     			append_dev(div, t2);
     			if (if_block3) if_block3.m(div, null);
     			append_dev(div, t3);
     			if (if_block4) if_block4.m(div, null);
     			append_dev(div, t4);
     			if (if_block5) if_block5.m(div, null);
+    			append_dev(div, t5);
+    			if (if_block6) if_block6.m(div, null);
     			ctx.div_binding(div);
     			current = true;
     		},
 
     		p: function update(changed, ctx) {
-    			if (ctx.isMulti && ctx.selectedValue && ctx.selectedValue.length > 0) {
+    			if (ctx.Icon) {
     				if (if_block0) {
     					if_block0.p(changed, ctx);
     					transition_in(if_block0, 1);
     				} else {
-    					if_block0 = create_if_block_5(ctx);
+    					if_block0 = create_if_block_6(ctx);
     					if_block0.c();
     					transition_in(if_block0, 1);
     					if_block0.m(div, t0);
@@ -8070,49 +8152,56 @@
     				check_outros();
     			}
 
-    			if (current_block_type === (current_block_type = select_block_type(changed, ctx)) && if_block1) {
-    				if_block1.p(changed, ctx);
-    			} else {
-    				if_block1.d(1);
-    				if_block1 = current_block_type(ctx);
+    			if (ctx.isMulti && ctx.selectedValue && ctx.selectedValue.length > 0) {
     				if (if_block1) {
+    					if_block1.p(changed, ctx);
+    					transition_in(if_block1, 1);
+    				} else {
+    					if_block1 = create_if_block_5(ctx);
     					if_block1.c();
+    					transition_in(if_block1, 1);
     					if_block1.m(div, t1);
+    				}
+    			} else if (if_block1) {
+    				group_outros();
+    				transition_out(if_block1, 1, 1, () => {
+    					if_block1 = null;
+    				});
+    				check_outros();
+    			}
+
+    			if (current_block_type === (current_block_type = select_block_type(changed, ctx)) && if_block2) {
+    				if_block2.p(changed, ctx);
+    			} else {
+    				if_block2.d(1);
+    				if_block2 = current_block_type(ctx);
+    				if (if_block2) {
+    					if_block2.c();
+    					if_block2.m(div, t2);
     				}
     			}
 
     			if (!ctx.isMulti && ctx.showSelectedItem) {
-    				if (if_block2) {
-    					if_block2.p(changed, ctx);
-    					transition_in(if_block2, 1);
+    				if (if_block3) {
+    					if_block3.p(changed, ctx);
+    					transition_in(if_block3, 1);
     				} else {
-    					if_block2 = create_if_block_3$2(ctx);
-    					if_block2.c();
-    					transition_in(if_block2, 1);
-    					if_block2.m(div, t2);
+    					if_block3 = create_if_block_3$2(ctx);
+    					if_block3.c();
+    					transition_in(if_block3, 1);
+    					if_block3.m(div, t3);
     				}
-    			} else if (if_block2) {
+    			} else if (if_block3) {
     				group_outros();
-    				transition_out(if_block2, 1, 1, () => {
-    					if_block2 = null;
+    				transition_out(if_block3, 1, 1, () => {
+    					if_block3 = null;
     				});
     				check_outros();
     			}
 
     			if (ctx.showSelectedItem && ctx.isClearable && !ctx.isDisabled && !ctx.isWaiting) {
-    				if (!if_block3) {
-    					if_block3 = create_if_block_2$2(ctx);
-    					if_block3.c();
-    					if_block3.m(div, t3);
-    				}
-    			} else if (if_block3) {
-    				if_block3.d(1);
-    				if_block3 = null;
-    			}
-
-    			if (!ctx.isSearchable && !ctx.isDisabled && !ctx.isWaiting && (ctx.showSelectedItem && !ctx.isClearable || !ctx.showSelectedItem)) {
     				if (!if_block4) {
-    					if_block4 = create_if_block_1$2(ctx);
+    					if_block4 = create_if_block_2$2(ctx);
     					if_block4.c();
     					if_block4.m(div, t4);
     				}
@@ -8121,18 +8210,29 @@
     				if_block4 = null;
     			}
 
-    			if (ctx.isWaiting) {
+    			if (ctx.showChevron && !ctx.selectedValue || (!ctx.isSearchable && !ctx.isDisabled && !ctx.isWaiting && ((ctx.showSelectedItem && !ctx.isClearable) || !ctx.showSelectedItem))) {
     				if (!if_block5) {
-    					if_block5 = create_if_block$3(ctx);
+    					if_block5 = create_if_block_1$2(ctx);
     					if_block5.c();
-    					if_block5.m(div, null);
+    					if_block5.m(div, t5);
     				}
     			} else if (if_block5) {
     				if_block5.d(1);
     				if_block5 = null;
     			}
 
-    			if ((!current || changed.containerClasses || changed.hasError) && div_class_value !== (div_class_value = "" + ctx.containerClasses + " " + (ctx.hasError ? 'hasError' : '') + " svelte-e3bo9s")) {
+    			if (ctx.isWaiting) {
+    				if (!if_block6) {
+    					if_block6 = create_if_block$3(ctx);
+    					if_block6.c();
+    					if_block6.m(div, null);
+    				}
+    			} else if (if_block6) {
+    				if_block6.d(1);
+    				if_block6 = null;
+    			}
+
+    			if ((!current || changed.containerClasses || changed.hasError) && div_class_value !== (div_class_value = "" + ctx.containerClasses + "\n  " + (ctx.hasError ? 'hasError' : '') + " svelte-cr4b6i")) {
     				attr_dev(div, "class", div_class_value);
     			}
 
@@ -8144,13 +8244,15 @@
     		i: function intro(local) {
     			if (current) return;
     			transition_in(if_block0);
-    			transition_in(if_block2);
+    			transition_in(if_block1);
+    			transition_in(if_block3);
     			current = true;
     		},
 
     		o: function outro(local) {
     			transition_out(if_block0);
-    			transition_out(if_block2);
+    			transition_out(if_block1);
+    			transition_out(if_block3);
     			current = false;
     		},
 
@@ -8160,11 +8262,12 @@
     			}
 
     			if (if_block0) if_block0.d();
-    			if_block1.d();
-    			if (if_block2) if_block2.d();
+    			if (if_block1) if_block1.d();
+    			if_block2.d();
     			if (if_block3) if_block3.d();
     			if (if_block4) if_block4.d();
     			if (if_block5) if_block5.d();
+    			if (if_block6) if_block6.d();
     			ctx.div_binding(null);
     			run_all(dispose);
     		}
@@ -8177,40 +8280,40 @@
     	
 
       const dispatch = createEventDispatcher();
-      let { container = undefined, input = undefined, Item: Item$1 = Item, Selection = Selection$1, MultiSelection: MultiSelection$1 = MultiSelection, isMulti = false, isDisabled = false, isCreatable = false, isFocused = false, selectedValue = undefined, filterText = '', placeholder = 'Select...', items = [], itemFilter = (label, filterText, option) => label.toLowerCase().includes(filterText.toLowerCase()) } = $$props;
-      let { groupBy = undefined, groupFilter = (groups) => groups } = $$props;
-      let { isGroupHeaderSelectable = false, getGroupHeaderLabel = (option) => {
-        return option.label
+      let { container = undefined, input = undefined, Item: Item$1 = Item, Selection = Selection$1, MultiSelection: MultiSelection$1 = MultiSelection, isMulti = false, isDisabled = false, isCreatable = false, isFocused = false, selectedValue = undefined, filterText = "", placeholder = "Select...", items = [], itemFilter = (label, filterText, option) =>
+        label.toLowerCase().includes(filterText.toLowerCase()) } = $$props;
+      let { groupBy = undefined, groupFilter = groups => groups } = $$props;
+      let { isGroupHeaderSelectable = false, getGroupHeaderLabel = option => {
+        return option.label;
       } } = $$props;
       let { getOptionLabel = (option, filterText) => {
         return option.isCreator ? `Create \"${filterText}\"` : option.label;
       } } = $$props;
-      let { optionIdentifier = 'value', loadOptions = undefined, hasError = false, containerStyles = '', getSelectionLabel = (option) => {
-        if (option) return option.label
+      let { optionIdentifier = "value", loadOptions = undefined, hasError = false, containerStyles = "", getSelectionLabel = option => {
+        if (option) return option.label;
       } } = $$props;
 
-      let { createGroupHeaderItem = (groupValue) => {
+      let { createGroupHeaderItem = groupValue => {
         return {
           value: groupValue,
           label: groupValue
-        }
+        };
       } } = $$props;
 
-      let { createItem = (filterText) => {
+      let { createItem = filterText => {
         return {
           value: filterText,
           label: filterText
         };
       } } = $$props;
 
-      let { isSearchable = true, inputStyles = '', isClearable = true, isWaiting = false, listPlacement = 'auto', listOpen = false, list = undefined, isVirtualList = false, loadOptionsInterval = 300, noOptionsMessage = 'No options', hideEmptyState = false, filteredItems = [], inputAttributes = {}, listAutoWidth = true, itemHeight = 40 } = $$props;
-      
+      let { isSearchable = true, inputStyles = "", isClearable = true, isWaiting = false, listPlacement = "auto", listOpen = false, list = undefined, isVirtualList = false, loadOptionsInterval = 300, noOptionsMessage = "No options", hideEmptyState = false, filteredItems = [], inputAttributes = {}, listAutoWidth = true, itemHeight = 40, Icon = undefined, showChevron = false } = $$props;
 
       let target;
       let activeSelectedValue;
       let _items = [];
       let originalItemsClone;
-      let containerClasses = '';
+      let containerClasses = "";
       let prev_selectedValue;
       let prev_listOpen;
       let prev_filterText;
@@ -8219,14 +8322,14 @@
 
       async function resetFilter() {
         await tick();
-        $$invalidate('filterText', filterText = '');
+        $$invalidate('filterText', filterText = "");
       }
 
       const getItems = debounce(async () => {
         $$invalidate('isWaiting', isWaiting = true);
-        
+
         $$invalidate('items', items = await loadOptions(filterText));
-      
+
         $$invalidate('isWaiting', isWaiting = false);
         $$invalidate('isFocused', isFocused = true);
         $$invalidate('listOpen', listOpen = true);
@@ -8240,14 +8343,21 @@
         }
 
         if (!isMulti && selectedValue && prev_selectedValue !== selectedValue) {
-          if (!prev_selectedValue || JSON.stringify(selectedValue[optionIdentifier]) !== JSON.stringify(prev_selectedValue[optionIdentifier])) {
-            dispatch('select', selectedValue);
+          if (
+            !prev_selectedValue ||
+            JSON.stringify(selectedValue[optionIdentifier]) !==
+              JSON.stringify(prev_selectedValue[optionIdentifier])
+          ) {
+            dispatch("select", selectedValue);
           }
         }
 
-        if (isMulti && JSON.stringify(selectedValue) !== JSON.stringify(prev_selectedValue)) {
+        if (
+          isMulti &&
+          JSON.stringify(selectedValue) !== JSON.stringify(prev_selectedValue)
+        ) {
           if (checkSelectedValueForDuplicates()) {
-            dispatch('select', selectedValue);
+            dispatch("select", selectedValue);
           }
         }
 
@@ -8301,7 +8411,7 @@
             const itemToCreate = createItem(filterText);
             itemToCreate.isCreator = true;
 
-            const existingItemWithFilterValue = _filteredItems.find((item) => {
+            const existingItemWithFilterValue = _filteredItems.find(item => {
               return item[optionIdentifier] === itemToCreate[optionIdentifier];
             });
 
@@ -8309,10 +8419,14 @@
 
             if (selectedValue) {
               if (isMulti) {
-                existingSelectionWithFilterValue = selectedValue.find((selection) => {
-                  return selection[optionIdentifier] === itemToCreate[optionIdentifier];
+                existingSelectionWithFilterValue = selectedValue.find(selection => {
+                  return (
+                    selection[optionIdentifier] === itemToCreate[optionIdentifier]
+                  );
                 });
-              } else if (selectedValue[optionIdentifier] === itemToCreate[optionIdentifier]) {
+              } else if (
+                selectedValue[optionIdentifier] === itemToCreate[optionIdentifier]
+              ) {
                 existingSelectionWithFilterValue = selectedValue;
               }
             }
@@ -8354,24 +8468,25 @@
 
       async function setList(items) {
         await tick();
-        if (list) return list.$set({ items })
+        if (list) return list.$set({ items });
         if (loadOptions && items.length > 0) loadList();
       }
 
       function handleMultiItemClear(event) {
         const { detail } = event;
-        const itemToRemove = selectedValue[detail ? detail.i : selectedValue.length - 1];
+        const itemToRemove =
+          selectedValue[detail ? detail.i : selectedValue.length - 1];
 
         if (selectedValue.length === 1) {
           $$invalidate('selectedValue', selectedValue = undefined);
         } else {
-          $$invalidate('selectedValue', selectedValue = selectedValue.filter((item) => {
+          $$invalidate('selectedValue', selectedValue = selectedValue.filter(item => {
             return item !== itemToRemove;
           }));
         }
 
-        dispatch('clear', itemToRemove);
-        
+        dispatch("clear", itemToRemove);
+
         getPosition();
       }
 
@@ -8380,11 +8495,11 @@
         if (!target || !container) return;
         const { top, height, width } = container.getBoundingClientRect();
 
-        target.style['min-width'] = `${width}px`;
-        target.style.width = `${listAutoWidth ? 'auto' : '100%'}`;
-        target.style.left = '0';
+        target.style["min-width"] = `${width}px`;
+        target.style.width = `${listAutoWidth ? "auto" : "100%"}`;
+        target.style.left = "0";
 
-        if (listPlacement === 'top') {
+        if (listPlacement === "top") {
           target.style.bottom = `${height + 5}px`;
         } else {
           target.style.top = `${height + 5}px`;
@@ -8392,52 +8507,68 @@
 
         target = target;
 
-        if (listPlacement === 'auto' && isOutOfViewport(target).bottom) {
+        if (listPlacement === "auto" && isOutOfViewport(target).bottom) {
           target.style.top = ``;
           target.style.bottom = `${height + 5}px`;
         }
 
-        target.style.visibility = '';
+        target.style.visibility = "";
       }
 
       function handleKeyDown(e) {
         if (!isFocused) return;
 
         switch (e.key) {
-          case 'ArrowDown':
+          case "ArrowDown":
             e.preventDefault();
             $$invalidate('listOpen', listOpen = true);
             $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
             break;
-          case 'ArrowUp':
+          case "ArrowUp":
             e.preventDefault();
             $$invalidate('listOpen', listOpen = true);
             $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
             break;
-          case 'Tab':
+          case "Tab":
             if (!listOpen) $$invalidate('isFocused', isFocused = false);
             break;
-          case 'Backspace':
+          case "Backspace":
             if (!isMulti || filterText.length > 0) return;
             if (isMulti && selectedValue && selectedValue.length > 0) {
-              handleMultiItemClear(activeSelectedValue !== undefined ? activeSelectedValue : selectedValue.length - 1);
-              if (activeSelectedValue === 0 || activeSelectedValue === undefined) break;
-              $$invalidate('activeSelectedValue', activeSelectedValue = selectedValue.length > activeSelectedValue ? activeSelectedValue - 1 : undefined);
+              handleMultiItemClear(
+                activeSelectedValue !== undefined
+                  ? activeSelectedValue
+                  : selectedValue.length - 1
+              );
+              if (activeSelectedValue === 0 || activeSelectedValue === undefined)
+                break;
+              $$invalidate('activeSelectedValue', activeSelectedValue =
+                selectedValue.length > activeSelectedValue
+                  ? activeSelectedValue - 1
+                  : undefined);
             }
             break;
-          case 'ArrowLeft':
+          case "ArrowLeft":
             if (list) list.$set({ hoverItemIndex: -1 });
             if (!isMulti || filterText.length > 0) return;
 
             if (activeSelectedValue === undefined) {
               $$invalidate('activeSelectedValue', activeSelectedValue = selectedValue.length - 1);
-            } else if (selectedValue.length > activeSelectedValue && activeSelectedValue !== 0) {
+            } else if (
+              selectedValue.length > activeSelectedValue &&
+              activeSelectedValue !== 0
+            ) {
               $$invalidate('activeSelectedValue', activeSelectedValue -= 1);
             }
             break;
-          case 'ArrowRight':
+          case "ArrowRight":
             if (list) list.$set({ hoverItemIndex: -1 });
-            if (!isMulti || filterText.length > 0 || activeSelectedValue === undefined) return;
+            if (
+              !isMulti ||
+              filterText.length > 0 ||
+              activeSelectedValue === undefined
+            )
+              return;
             if (activeSelectedValue === selectedValue.length - 1) {
               $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
             } else if (activeSelectedValue < selectedValue.length - 1) {
@@ -8470,7 +8601,8 @@
 
       function handleWindowClick(event) {
         if (!container) return;
-        const eventTarget = event.path && (event.path.length > 0) ? event.path[0] : event.target;
+        const eventTarget =
+          event.path && event.path.length > 0 ? event.path[0] : event.target;
         if (container.contains(eventTarget)) return;
         $$invalidate('isFocused', isFocused = false);
         $$invalidate('listOpen', listOpen = false);
@@ -8487,7 +8619,7 @@
       function handleClear() {
         $$invalidate('selectedValue', selectedValue = undefined);
         $$invalidate('listOpen', listOpen = false);
-        dispatch('clear', selectedValue);
+        dispatch("clear", selectedValue);
         handleFocus();
       }
 
@@ -8513,12 +8645,12 @@
           data.getOptionLabel = getOptionLabel;
         }
 
-        target = document.createElement('div');
+        target = document.createElement("div");
 
         Object.assign(target.style, {
-          position: 'absolute',
-          'z-index': 2,
-          'visibility': 'hidden'
+          position: "absolute",
+          "z-index": 2,
+          visibility: "hidden"
         });
 
         $$invalidate('list', list);
@@ -8530,7 +8662,7 @@
           props: data
         }));
 
-        list.$on('itemSelected', (event) => {
+        list.$on("itemSelected", event => {
           const { detail } = event;
 
           if (detail) {
@@ -8552,7 +8684,7 @@
           }
         });
 
-        list.$on('itemCreated', (event) => {
+        list.$on("itemCreated", event => {
           const { detail } = event;
           if (isMulti) {
             $$invalidate('selectedValue', selectedValue = selectedValue || []);
@@ -8561,18 +8693,17 @@
             $$invalidate('selectedValue', selectedValue = createItem(detail));
           }
 
-          $$invalidate('filterText', filterText = '');
+          $$invalidate('filterText', filterText = "");
           $$invalidate('listOpen', listOpen = false);
           $$invalidate('activeSelectedValue', activeSelectedValue = undefined);
           resetFilter();
         });
-        
-        list.$on('closeList', () => {
+
+        list.$on("closeList", () => {
           $$invalidate('listOpen', listOpen = false);
         });
-      
-        $$invalidate('list', list),
-        target = target;
+
+        ($$invalidate('list', list)), (target = target);
         getPosition();
       }
 
@@ -8587,8 +8718,8 @@
         if (selectedValue) {
           if (isMulti) {
             $$invalidate('selectedValue', selectedValue = selectedValue.map(item => {
-              if (typeof item === 'string') {
-                return { value: item, label: item }
+              if (typeof item === "string") {
+                return { value: item, label: item };
               } else {
                 return item;
               }
@@ -8601,7 +8732,7 @@
         removeList();
       });
 
-    	const writable_props = ['container', 'input', 'Item', 'Selection', 'MultiSelection', 'isMulti', 'isDisabled', 'isCreatable', 'isFocused', 'selectedValue', 'filterText', 'placeholder', 'items', 'itemFilter', 'groupBy', 'groupFilter', 'isGroupHeaderSelectable', 'getGroupHeaderLabel', 'getOptionLabel', 'optionIdentifier', 'loadOptions', 'hasError', 'containerStyles', 'getSelectionLabel', 'createGroupHeaderItem', 'createItem', 'isSearchable', 'inputStyles', 'isClearable', 'isWaiting', 'listPlacement', 'listOpen', 'list', 'isVirtualList', 'loadOptionsInterval', 'noOptionsMessage', 'hideEmptyState', 'filteredItems', 'inputAttributes', 'listAutoWidth', 'itemHeight'];
+    	const writable_props = ['container', 'input', 'Item', 'Selection', 'MultiSelection', 'isMulti', 'isDisabled', 'isCreatable', 'isFocused', 'selectedValue', 'filterText', 'placeholder', 'items', 'itemFilter', 'groupBy', 'groupFilter', 'isGroupHeaderSelectable', 'getGroupHeaderLabel', 'getOptionLabel', 'optionIdentifier', 'loadOptions', 'hasError', 'containerStyles', 'getSelectionLabel', 'createGroupHeaderItem', 'createItem', 'isSearchable', 'inputStyles', 'isClearable', 'isWaiting', 'listPlacement', 'listOpen', 'list', 'isVirtualList', 'loadOptionsInterval', 'noOptionsMessage', 'hideEmptyState', 'filteredItems', 'inputAttributes', 'listAutoWidth', 'itemHeight', 'Icon', 'showChevron'];
     	Object_1.keys($$props).forEach(key => {
     		if (!writable_props.includes(key) && !key.startsWith('$$')) console.warn(`<Select> was created with unknown prop '${key}'`);
     	});
@@ -8676,10 +8807,12 @@
     		if ('inputAttributes' in $$props) $$invalidate('inputAttributes', inputAttributes = $$props.inputAttributes);
     		if ('listAutoWidth' in $$props) $$invalidate('listAutoWidth', listAutoWidth = $$props.listAutoWidth);
     		if ('itemHeight' in $$props) $$invalidate('itemHeight', itemHeight = $$props.itemHeight);
+    		if ('Icon' in $$props) $$invalidate('Icon', Icon = $$props.Icon);
+    		if ('showChevron' in $$props) $$invalidate('showChevron', showChevron = $$props.showChevron);
     	};
 
     	$$self.$capture_state = () => {
-    		return { container, input, Item: Item$1, Selection, MultiSelection: MultiSelection$1, isMulti, isDisabled, isCreatable, isFocused, selectedValue, filterText, placeholder, items, itemFilter, groupBy, groupFilter, isGroupHeaderSelectable, getGroupHeaderLabel, getOptionLabel, optionIdentifier, loadOptions, hasError, containerStyles, getSelectionLabel, createGroupHeaderItem, createItem, isSearchable, inputStyles, isClearable, isWaiting, listPlacement, listOpen, list, isVirtualList, loadOptionsInterval, noOptionsMessage, hideEmptyState, filteredItems, inputAttributes, listAutoWidth, itemHeight, target, activeSelectedValue, _items, originalItemsClone, containerClasses, prev_selectedValue, prev_listOpen, prev_filterText, prev_isFocused, prev_filteredItems, _inputAttributes, disabled, showSelectedItem, placeholderText };
+    		return { container, input, Item: Item$1, Selection, MultiSelection: MultiSelection$1, isMulti, isDisabled, isCreatable, isFocused, selectedValue, filterText, placeholder, items, itemFilter, groupBy, groupFilter, isGroupHeaderSelectable, getGroupHeaderLabel, getOptionLabel, optionIdentifier, loadOptions, hasError, containerStyles, getSelectionLabel, createGroupHeaderItem, createItem, isSearchable, inputStyles, isClearable, isWaiting, listPlacement, listOpen, list, isVirtualList, loadOptionsInterval, noOptionsMessage, hideEmptyState, filteredItems, inputAttributes, listAutoWidth, itemHeight, Icon, showChevron, target, activeSelectedValue, _items, originalItemsClone, containerClasses, prev_selectedValue, prev_listOpen, prev_filterText, prev_isFocused, prev_filteredItems, _inputAttributes, disabled, showSelectedItem, placeholderText };
     	};
 
     	$$self.$inject_state = $$props => {
@@ -8724,6 +8857,8 @@
     		if ('inputAttributes' in $$props) $$invalidate('inputAttributes', inputAttributes = $$props.inputAttributes);
     		if ('listAutoWidth' in $$props) $$invalidate('listAutoWidth', listAutoWidth = $$props.listAutoWidth);
     		if ('itemHeight' in $$props) $$invalidate('itemHeight', itemHeight = $$props.itemHeight);
+    		if ('Icon' in $$props) $$invalidate('Icon', Icon = $$props.Icon);
+    		if ('showChevron' in $$props) $$invalidate('showChevron', showChevron = $$props.showChevron);
     		if ('target' in $$props) target = $$props.target;
     		if ('activeSelectedValue' in $$props) $$invalidate('activeSelectedValue', activeSelectedValue = $$props.activeSelectedValue);
     		if ('_items' in $$props) $$invalidate('_items', _items = $$props._items);
@@ -8746,21 +8881,24 @@
     		if ($$dirty.isDisabled) { disabled = isDisabled; }
     		if ($$dirty.isMulti || $$dirty.isDisabled || $$dirty.isFocused) { {
             $$invalidate('containerClasses', containerClasses = `selectContainer`);
-            $$invalidate('containerClasses', containerClasses += isMulti ? ' multiSelect' : '');
-            $$invalidate('containerClasses', containerClasses += isDisabled ? ' disabled' : '');
-            $$invalidate('containerClasses', containerClasses += isFocused ? ' focused' : '');
+            $$invalidate('containerClasses', containerClasses += isMulti ? " multiSelect" : "");
+            $$invalidate('containerClasses', containerClasses += isDisabled ? " disabled" : "");
+            $$invalidate('containerClasses', containerClasses += isFocused ? " focused" : "");
           } }
     		if ($$dirty.selectedValue || $$dirty.optionIdentifier) { {
-            if (typeof selectedValue === 'string') {
-              $$invalidate('selectedValue', selectedValue = { [optionIdentifier]: selectedValue, label: selectedValue });
+            if (typeof selectedValue === "string") {
+              $$invalidate('selectedValue', selectedValue = {
+                [optionIdentifier]: selectedValue,
+                label: selectedValue
+              });
             }
           } }
     		if ($$dirty.selectedValue || $$dirty.filterText) { $$invalidate('showSelectedItem', showSelectedItem = selectedValue && filterText.length === 0); }
-    		if ($$dirty.selectedValue || $$dirty.placeholder) { $$invalidate('placeholderText', placeholderText = selectedValue ? '' : placeholder); }
+    		if ($$dirty.selectedValue || $$dirty.placeholder) { $$invalidate('placeholderText', placeholderText = selectedValue ? "" : placeholder); }
     		if ($$dirty.inputAttributes || $$dirty.isSearchable) { {
             $$invalidate('_inputAttributes', _inputAttributes = Object.assign(inputAttributes, {
-              autocomplete: 'off',
-              autocorrect: 'off',
+              autocomplete: "off",
+              autocorrect: "off",
               spellcheck: false
             }));
         
@@ -8772,13 +8910,13 @@
             let _filteredItems;
             let _items = items;
         
-            if (items && items.length > 0 && typeof items[0] !== 'object') {
+            if (items && items.length > 0 && typeof items[0] !== "object") {
               _items = items.map((item, index) => {
                 return {
                   index,
                   value: item,
                   label: item
-                }
+                };
               });
             }
         
@@ -8786,51 +8924,59 @@
               _filteredItems = JSON.parse(originalItemsClone);
               _items = JSON.parse(originalItemsClone);
             } else {
-              _filteredItems = loadOptions ? filterText.length === 0 ? [] : _items : _items.filter(item => {
+              _filteredItems = loadOptions
+                ? filterText.length === 0
+                  ? []
+                  : _items
+                : _items.filter(item => {
+                    let keepItem = true;
         
-                let keepItem = true;
+                    if (isMulti && selectedValue) {
+                      keepItem = !selectedValue.find(value => {
+                        return value[optionIdentifier] === item[optionIdentifier];
+                      });
+                    }
         
-                if (isMulti && selectedValue) {
-                  keepItem = !selectedValue.find((value) => {
-                    return value[optionIdentifier] === item[optionIdentifier]
+                    if (!keepItem) return false;
+                    if (filterText.length < 1) return true;
+                    return itemFilter(
+                      getOptionLabel(item, filterText),
+                      filterText,
+                      item
+                    );
                   });
-                }
-        
-                if (!keepItem) return false;
-                if (filterText.length < 1) return true;
-                return itemFilter(getOptionLabel(item, filterText), filterText, item);
-              });
             }
         
             if (groupBy) {
               const groupValues = [];
               const groups = {};
         
-              _filteredItems.forEach((item) => {
+              _filteredItems.forEach(item => {
                 const groupValue = groupBy(item);
         
                 if (!groupValues.includes(groupValue)) {
                   groupValues.push(groupValue);
                   groups[groupValue] = [];
         
-                  if(groupValue) {
-                    groups[groupValue].push(Object.assign(
-                      createGroupHeaderItem(groupValue, item), 
-                      { 
-                        id: groupValue, 
-                        isGroupHeader: true, 
+                  if (groupValue) {
+                    groups[groupValue].push(
+                      Object.assign(createGroupHeaderItem(groupValue, item), {
+                        id: groupValue,
+                        isGroupHeader: true,
                         isSelectable: isGroupHeaderSelectable
-                      }
-                    ));
+                      })
+                    );
                   }
                 }
-                
-                groups[groupValue].push(Object.assign({ isGroupItem: !!groupValue }, item));
+        
+                groups[groupValue].push(
+                  Object.assign({ isGroupItem: !!groupValue }, item)
+                );
               });
         
               const sortedGroupedItems = [];
         
-              groupFilter(groupValues).forEach((groupValue) => {
+              groupFilter(groupValues).forEach(groupValue => {
                 sortedGroupedItems.push(...groups[groupValue]);
               });
         
@@ -8883,6 +9029,8 @@
     		inputAttributes,
     		listAutoWidth,
     		itemHeight,
+    		Icon,
+    		showChevron,
     		activeSelectedValue,
     		containerClasses,
     		_inputAttributes,
@@ -8906,7 +9054,7 @@
     class Select extends SvelteComponentDev {
     	constructor(options) {
     		super(options);
-    		init(this, options, instance$6, create_fragment$6, safe_not_equal, ["container", "input", "Item", "Selection", "MultiSelection", "isMulti", "isDisabled", "isCreatable", "isFocused", "selectedValue", "filterText", "placeholder", "items", "itemFilter", "groupBy", "groupFilter", "isGroupHeaderSelectable", "getGroupHeaderLabel", "getOptionLabel", "optionIdentifier", "loadOptions", "hasError", "containerStyles", "getSelectionLabel", "createGroupHeaderItem", "createItem", "isSearchable", "inputStyles", "isClearable", "isWaiting", "listPlacement", "listOpen", "list", "isVirtualList", "loadOptionsInterval", "noOptionsMessage", "hideEmptyState", "filteredItems", "inputAttributes", "listAutoWidth", "itemHeight", "handleClear"]);
+    		init(this, options, instance$6, create_fragment$6, safe_not_equal, ["container", "input", "Item", "Selection", "MultiSelection", "isMulti", "isDisabled", "isCreatable", "isFocused", "selectedValue", "filterText", "placeholder", "items", "itemFilter", "groupBy", "groupFilter", "isGroupHeaderSelectable", "getGroupHeaderLabel", "getOptionLabel", "optionIdentifier", "loadOptions", "hasError", "containerStyles", "getSelectionLabel", "createGroupHeaderItem", "createItem", "isSearchable", "inputStyles", "isClearable", "isWaiting", "listPlacement", "listOpen", "list", "isVirtualList", "loadOptionsInterval", "noOptionsMessage", "hideEmptyState", "filteredItems", "inputAttributes", "listAutoWidth", "itemHeight", "Icon", "showChevron", "handleClear"]);
     		dispatch_dev("SvelteRegisterComponent", { component: this, tagName: "Select", options, id: create_fragment$6.name });
 
     		const { ctx } = this.$$;
@@ -9241,6 +9389,22 @@
     	}
 
     	set itemHeight(value) {
+    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get Icon() {
+    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set Icon(value) {
+    		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	get showChevron() {
+    		throw new Error("<Select>: Props cannot be read directly from the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
+    	}
+
+    	set showChevron(value) {
     		throw new Error("<Select>: Props cannot be set directly on the component instance unless compiling with 'accessors: true' or '<svelte:options accessors/>'");
     	}
 
@@ -27616,23 +27780,165 @@
     }
 
     var countryParameters = {};
+    countryParameters["Afghanistan"] = {"All" : createDictionary(17.074, 30, 4, "af")};
+    countryParameters["Albania"] = {"All" : createDictionary(14.879, 30, 4, "al")};
+    countryParameters["Algeria"] = {"All" : createDictionary(17.471, 30, 4, "dz")};
+    countryParameters["Angola"] = {"All" : createDictionary(17.009, 30, 4, "ao")};
+    countryParameters["Antigua and Barbuda"] = {"All" : createDictionary(11.366, 30, 4, "ag")};
     countryParameters["Argentina"] = {"All" : createDictionary(17.605, 30, 4, "ar")};
+    countryParameters["Armenia"] = {"All" : createDictionary(14.917, 30, 4, "am")};
+    countryParameters["Austria"] = {"All" : createDictionary(15.959, 30, 4, "at")};
+    countryParameters["Azerbaijan"] = {"All" : createDictionary(16.072, 30, 4, "az")};
+    countryParameters["Bahrain"] = {"All" : createDictionary(14.090, 30, 4, "bh")};
+    countryParameters["Bangladesh"] = {"All" : createDictionary(18.875, 30, 4, "bd")};
+    countryParameters["Barbados"] = {"All" : createDictionary(12.560, 30, 4, "bb")};
+    countryParameters["Belarus"] = {"All" : createDictionary(16.064, 30, 4, "by")};
+    countryParameters["Belgium"] = {"All" : createDictionary(16.234, 30, 4, "be")};
+    countryParameters["Belize"] = {"All" : createDictionary(12.765, 30, 4, "bz")};
+    countryParameters["Benin"] = {"All" : createDictionary(16.117, 30, 4, "bj")};
+    countryParameters["Bhutan"] = {"All" : createDictionary(13.535, 30, 4, "bt")};
+    countryParameters["Bolivia"] = {"All" : createDictionary(16.121, 30, 4, "bo")};
+    countryParameters["Bosnia and Herzegovina"] = {"All" : createDictionary(15.148, 30, 4, "ba")};
+    countryParameters["Botswana"] = {"All" : createDictionary(14.521, 30, 4, "bw")};
     countryParameters["Brazil"] = {"All" : createDictionary(19.15, 28, 5, "br")};
-    countryParameters["Czechia"] = {"All" : createDictionary(16.18, 29, 3.7, "cz")};
-    countryParameters["China"] = {"Beijing" : createDictionary(16.885, 0, 3, "cn"),
-    			      "Hubei" : createDictionary(17.884, 0, 3, "cn")
-                                  };
+    countryParameters["Brunei"] = {"All" : createDictionary(12.883, 30, 4, "bn")};
+    countryParameters["Bulgaria"] = {"All" : createDictionary(15.796, 30, 4, "bg")};
+    countryParameters["Burkina Faso"] = {"All" : createDictionary(16.668, 30, 4, "bf")};
+    countryParameters["Burundi"] = {"All" : createDictionary(16.070, 30, 4, "bi")};
+    countryParameters["Cambodia"] = {"All" : createDictionary(16.536, 30, 4, "kh")};
+    countryParameters["Cameroon"] = {"All" : createDictionary(16.830, 30, 4, "cm")};
+    countryParameters["Central African Republic"] = {"All" : createDictionary(15.365, 30, 4, "cf")};
+    countryParameters["Chad"] = {"All" : createDictionary(16.397, 30, 4, "td")};
+    countryParameters["Chile"] = {"All" : createDictionary(16.696, 30, 4, "cl")};
+    countryParameters["China"] = {"Beijing" : createDictionary(16.885, 0, 3, "cn"),"Hubei" : createDictionary(17.884, 0, 3, "cn")};
+    countryParameters["Colombia"] = {"All" : createDictionary(17.685, 30, 4, "co")};
+    countryParameters["Costa Rica"] = {"All" : createDictionary(15.366, 30, 4, "cr")};
+    countryParameters["Croatia"] = {"All" : createDictionary(15.267, 30, 4, "hr")};
+    countryParameters["Cuba"] = {"All" : createDictionary(16.232, 30, 4, "cu")};
+    countryParameters["Cyprus"] = {"All" : createDictionary(13.662, 30, 4, "cy")};
+    countryParameters["Djibouti"] = {"All" : createDictionary(13.694, 30, 4, "dj")};
+    countryParameters["Dominica"] = {"All" : createDictionary(11.175, 30, 4, "dm")};
+    countryParameters["Dominican Republic"] = {"All" : createDictionary(16.155, 30, 4, "do")};
+    countryParameters["Ecuador"] = {"All" : createDictionary(16.581, 30, 4, "ec")};
+    countryParameters["Egypt"] = {"All" : createDictionary(18.289, 30, 4, "eg")};
+    countryParameters["El Salvador"] = {"All" : createDictionary(15.672, 30, 4, "sv")};
+    countryParameters["Equatorial Guinea"] = {"All" : createDictionary(14.173, 30, 4, "gq")};
+    countryParameters["Eritrea"] = {"All" : createDictionary(15.693, 30, 4, "er")};
+    countryParameters["Estonia"] = {"All" : createDictionary(14.090, 30, 4, "ee")};
+    countryParameters["Ethiopia"] = {"All" : createDictionary(18.292, 30, 4, "et")};
+    countryParameters["Fiji"] = {"All" : createDictionary(13.664, 30, 4, "fj")};
+    countryParameters["Finland"] = {"All" : createDictionary(15.515, 30, 4, "fi")};
     countryParameters["France"] = {"All" : createDictionary(18.018, 20, 5, "fr")};
+    countryParameters["Gabon"] = {"All" : createDictionary(14.353, 30, 4, "ga")};
+    countryParameters["Georgia"] = {"All" : createDictionary(15.317, 30, 4, "ge")};
     countryParameters["Germany"] = {"All" : createDictionary(18.23, 20, 4.6, "de")};
+    countryParameters["Ghana"] = {"All" : createDictionary(17.113, 30, 4, "gh")};
+    countryParameters["Greece"] = {"All" : createDictionary(16.213, 30, 4, "gr")};
+    countryParameters["Grenada"] = {"All" : createDictionary(11.546, 30, 4, "gd")};
+    countryParameters["Guatemala"] = {"All" : createDictionary(16.576, 30, 4, "gt")};
+    countryParameters["Guinea"] = {"All" : createDictionary(16.179, 30, 4, "gn")};
+    countryParameters["Guinea-Bissau"] = {"All" : createDictionary(14.373, 30, 4, "gw")};
+    countryParameters["Guyana"] = {"All" : createDictionary(13.573, 30, 4, "gy")};
+    countryParameters["Haiti"] = {"All" : createDictionary(16.190, 30, 4, "ht")};
+    countryParameters["Honduras"] = {"All" : createDictionary(15.982, 30, 4, "hn")};
+    countryParameters["Hungary"] = {"All" : createDictionary(16.106, 30, 4, "hu")};
+    countryParameters["Iceland"] = {"All" : createDictionary(12.701, 30, 4, "is")};
+    countryParameters["India"] = {"All" : createDictionary(20.957, 30, 4, "in")};
+    countryParameters["Indonesia"] = {"All" : createDictionary(19.346, 30, 4, "id")};
     countryParameters["Iran"] = {"All" : createDictionary(18.21, 18, 5, "ir")};
+    countryParameters["Iraq"] = {"All" : createDictionary(17.399, 30, 4, "iq")};
+    countryParameters["Ireland"] = {"All" : createDictionary(15.668, 30, 4, "ie")};
+    countryParameters["Israel"] = {"All" : createDictionary(15.928, 30, 4, "il")};
     countryParameters["Italy"] = {"All" : createDictionary(17.917, 0, 4, "it")};
+    countryParameters["Jamaica"] = {"All" : createDictionary(14.815, 30, 4, "jm")};
+    countryParameters["Japan"] = {"All" : createDictionary(18.660, 30, 4, "jp")};
+    countryParameters["Jordan"] = {"All" : createDictionary(15.713, 30, 4, "jo")};
+    countryParameters["Kazakhstan"] = {"All" : createDictionary(16.671, 30, 4, "kz")};
+    countryParameters["Kenya"] = {"All" : createDictionary(17.548, 30, 4, "ke")};
+    countryParameters["Kuwait"] = {"All" : createDictionary(15.000, 30, 4, "kw")};
+    countryParameters["Kyrgyzstan"] = {"All" : createDictionary(15.569, 30, 4, "kg")};
+    countryParameters["Laos"] = {"All" : createDictionary(15.717, 30, 4, "la")};
+    countryParameters["Latvia"] = {"All" : createDictionary(14.505, 30, 4, "lv")};
+    countryParameters["Lebanon"] = {"All" : createDictionary(15.227, 30, 4, "lb")};
+    countryParameters["Liberia"] = {"All" : createDictionary(15.296, 30, 4, "lr")};
+    countryParameters["Libya"] = {"All" : createDictionary(15.649, 30, 4, "ly")};
+    countryParameters["Liechtenstein"] = {"All" : createDictionary(10.522, 30, 4, "li")};
+    countryParameters["Lithuania"] = {"All" : createDictionary(14.890, 30, 4, "lt")};
+    countryParameters["Luxembourg"] = {"All" : createDictionary(13.217, 30, 4, "lu")};
+    countryParameters["Madagascar"] = {"All" : createDictionary(16.899, 30, 4, "mg")};
+    countryParameters["Malawi"] = {"All" : createDictionary(16.576, 30, 4, "mw")};
+    countryParameters["Malaysia"] = {"All" : createDictionary(17.231, 30, 4, "my")};
+    countryParameters["Maldives"] = {"All" : createDictionary(12.740, 30, 4, "mv")};
+    countryParameters["Mali"] = {"All" : createDictionary(16.573, 30, 4, "ml")};
+    countryParameters["Malta"] = {"All" : createDictionary(12.939, 30, 4, "mt")};
+    countryParameters["Mauritania"] = {"All" : createDictionary(15.081, 30, 4, "mr")};
+    countryParameters["Mauritius"] = {"All" : createDictionary(14.048, 30, 4, "mu")};
+    countryParameters["Mexico"] = {"All" : createDictionary(18.601, 30, 4, "mx")};
+    countryParameters["Moldova"] = {"All" : createDictionary(15.085, 30, 4, "md")};
+    countryParameters["Monaco"] = {"All" : createDictionary(10.517, 30, 4, "mc")};
+    countryParameters["Mongolia"] = {"All" : createDictionary(14.910, 30, 4, "mn")};
+    countryParameters["Morocco"] = {"All" : createDictionary(17.326, 30, 4, "ma")};
+    countryParameters["Mozambique"] = {"All" : createDictionary(17.036, 30, 4, "mz")};
+    countryParameters["Namibia"] = {"All" : createDictionary(14.564, 30, 4, "na")};
+    countryParameters["Nepal"] = {"All" : createDictionary(17.135, 30, 4, "np")};
+    countryParameters["New Zealand"] = {"All" : createDictionary(15.330, 30, 4, "nz")};
+    countryParameters["Nicaragua"] = {"All" : createDictionary(15.629, 30, 4, "ni")};
+    countryParameters["Niger"] = {"All" : createDictionary(16.657, 30, 4, "ne")};
+    countryParameters["Nigeria"] = {"All" : createDictionary(19.000, 30, 4, "ng")};
+    countryParameters["Norway"] = {"All" : createDictionary(15.456, 30, 4, "no")};
+    countryParameters["Oman"] = {"All" : createDictionary(15.224, 30, 4, "om")};
     countryParameters["Pakistan"] = {"All" : createDictionary(19.098, 35, 4, "pk")};
+    countryParameters["Panama"] = {"All" : createDictionary(15.127, 30, 4, "pa")};
+    countryParameters["Papua New Guinea"] = {"All" : createDictionary(15.817, 30, 4, "pg")};
+    countryParameters["Paraguay"] = {"All" : createDictionary(15.746, 30, 4, "py")};
+    countryParameters["Peru"] = {"All" : createDictionary(17.243, 30, 4, "pe")};
+    countryParameters["Philippines"] = {"All" : createDictionary(18.428, 30, 4, "ph")};
+    countryParameters["Poland"] = {"All" : createDictionary(17.466, 30, 4, "pl")};
+    countryParameters["Portugal"] = {"All" : createDictionary(16.165, 30, 4, "pt")};
+    countryParameters["Qatar"] = {"All" : createDictionary(14.635, 30, 4, "qa")};
+    countryParameters["Romania"] = {"All" : createDictionary(16.808, 30, 4, "ro")};
+    countryParameters["Russia"] = {"All" : createDictionary(18.801, 30, 4, "ru")};
+    countryParameters["Rwanda"] = {"All" : createDictionary(16.213, 30, 4, "rw")};
+    countryParameters["Saint Kitts and Nevis"] = {"All" : createDictionary(10.915, 30, 4, "kn")};
+    countryParameters["Saint Lucia"] = {"All" : createDictionary(12.123, 30, 4, "lc")};
+    countryParameters["Saint Vincent and the Grenadines"] = {"All" : createDictionary(11.599, 30, 4, "vc")};
+    countryParameters["San Marino"] = {"All" : createDictionary(10.396, 30, 4, "sm")};
+    countryParameters["Saudi Arabia"] = {"All" : createDictionary(17.242, 30, 4, "sa")};
+    countryParameters["Senegal"] = {"All" : createDictionary(16.419, 30, 4, "sn")};
+    countryParameters["Seychelles"] = {"All" : createDictionary(11.407, 30, 4, "sc")};
+    countryParameters["Sierra Leone"] = {"All" : createDictionary(15.641, 30, 4, "sl")};
+    countryParameters["Singapore"] = {"All" : createDictionary(15.515, 30, 4, "sg")};
+    countryParameters["Slovakia"] = {"All" : createDictionary(15.505, 30, 4, "sk")};
+    countryParameters["Slovenia"] = {"All" : createDictionary(14.541, 30, 4, "si")};
+    countryParameters["Somalia"] = {"All" : createDictionary(16.196, 30, 4, "so")};
+    countryParameters["South Africa"] = {"All" : createDictionary(17.805, 30, 4, "za")};
+    countryParameters["South Sudan"] = {"All" : createDictionary(16.248, 30, 4, "ss")};
     countryParameters["Spain"] = {"All" : createDictionary(17.664, 20, 5, "es")};
+    countryParameters["Sri Lanka"] = {"All" : createDictionary(16.825, 30, 4, "lk")};
+    countryParameters["Sudan"] = {"All" : createDictionary(17.434, 30, 4, "sd")};
+    countryParameters["Suriname"] = {"All" : createDictionary(13.189, 30, 4, "sr")};
     countryParameters["Sweden"] = {"All" : createDictionary(16.130, 30, 5, "se")};
     countryParameters["Switzerland"] = {"All" : createDictionary(15.963, 30, 5, "ch")};
+    countryParameters["Syria"] = {"All" : createDictionary(16.949, 30, 4, "sy")};
+    countryParameters["Tanzania"] = {"All" : createDictionary(17.675, 30, 4, "tz")};
+    countryParameters["Thailand"] = {"All" : createDictionary(17.988, 30, 4, "th")};
+    countryParameters["Togo"] = {"All" : createDictionary(15.760, 30, 4, "tg")};
+    countryParameters["Trinidad and Tobago"] = {"All" : createDictionary(14.099, 30, 4, "tt")};
+    countryParameters["Tunisia"] = {"All" : createDictionary(16.212, 30, 4, "tn")};
     countryParameters["Turkey"] = {"All" : createDictionary(18.2076, 30, 5, "tr")};
+    countryParameters["Uganda"] = {"All" : createDictionary(17.367, 30, 4, "ug")};
+    countryParameters["Ukraine"] = {"All" : createDictionary(17.576, 30, 4, "ua")};
+    countryParameters["United Arab Emirates"] = {"All" : createDictionary(16.061, 30, 4, "ae")};
     countryParameters["United Kingdom"] = {"All" : createDictionary(18.01, 20, 5, "gb")};
     countryParameters["US"] = {"All" : createDictionary(19.6, 18, 4.88, "us")};
+    countryParameters["Uruguay"] = {"All" : createDictionary(15.041, 30, 4, "uy")};
+    countryParameters["Uzbekistan"] = {"All" : createDictionary(17.233, 30, 4, "uz")};
+    countryParameters["Venezuela"] = {"All" : createDictionary(17.224, 30, 4, "ve")};
+    countryParameters["Vietnam"] = {"All" : createDictionary(18.312, 30, 4, "vn")};
+    countryParameters["Western Sahara"] = {"All" : createDictionary(13.281, 30, 4, "eh")};
+    countryParameters["Yemen"] = {"All" : createDictionary(17.072, 30, 4, "ye")};
+    countryParameters["Zambia"] = {"All" : createDictionary(16.525, 30, 4, "zm")};
+    countryParameters["Zimbabwe"] = {"All" : createDictionary(16.385, 30, 4, "zw")};
 
 
     //countryParameters["US"] = {"All" : createDictionary(19.6, 28, 5)};
@@ -27646,8 +27952,8 @@
 
     function getCountryParameters(country, province, parameter) {	
         if (checkCountryListed(country)) {
-    	console.log("Country Here: ", country);
-    	console.log("Province Here: ", province);
+    	// console.log("Country Here: ", country);
+    	// console.log("Province Here: ", province);
     	return countryParameters[country][province ? province : "All"][parameter]
         } else {
     	return None
